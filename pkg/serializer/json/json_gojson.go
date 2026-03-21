@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"io"
 
+	json "github.com/goccy/go-json"
 	"github.com/valyala/bytebufferpool"
 
 	"go-port-forward/pkg/pool"
