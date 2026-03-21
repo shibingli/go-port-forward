@@ -117,6 +117,24 @@ bash build.sh darwin       # 仅构建 macOS
 
 > 也可通过环境变量指定版本号：`VERSION=v1.0.0 bash build.sh`
 
+### CI/CD 自动发布 | Automated Release
+
+项目集成了 GitHub Actions，推送符合格式的 tag 后会自动触发全平台构建并创建 GitHub Release：
+
+```bash
+# 正式版本发布
+git tag v1.0.0
+git push origin v1.0.0
+
+# 预发布版本（带后缀自动标记为 Pre-release）
+git tag v1.0.0-beta.1
+git push origin v1.0.0-beta.1
+```
+
+**触发规则：** tag 格式为 `v{主版本}.{次版本}.{修订号}` 或 `v{主版本}.{次版本}.{修订号}-{后缀}`。
+
+**自动完成：** 7 个平台产物编译 → 打包归档 → 生成 SHA256 校验 → 创建 Release 并上传。
+
 ### 运行 | Run
 
 ```bash
