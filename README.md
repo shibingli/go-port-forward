@@ -11,7 +11,7 @@ A high-performance cross-platform TCP/UDP port forwarder with a built-in Web UI.
 - **WSL2 端口导入** — 自动发现 WSL2 发行版监听端口并一键导入转发规则
 - **跨平台防火墙管理** — Windows (netsh)、Linux (iptables)、macOS (pfctl) 自动添加/删除防火墙规则
 - **系统服务支持** — 可注册为 Windows Service / Linux systemd / macOS launchd 后台服务
-- **高性能并发** — 基于 [ants](https://github.com/panjf2000/ants) 协程池，支持万级并发连接
+- **高性能并发** — 基于 [ants](https://github.com/panjf2000/ants) 协程池，支持高并发连接
 - **嵌入式存储** — 使用 [bbolt](https://go.etcd.io/bbolt) 嵌入式 KV 数据库，零依赖部署
 - **自动 GC 管理** — 内存阈值触发 + 定时 GC，多种回收策略可选
 - **YAML 配置** — 首次运行自动生成默认配置文件
@@ -95,9 +95,27 @@ go-port-forward/
 
 ### 编译 | Build
 
+项目提供了跨平台构建脚本，支持一键编译所有平台（Windows / Linux / macOS，amd64 / arm64 / arm）并自动打包：
+
 ```bash
-go build -o go-port-forward .
+# Linux / macOS
+bash build.sh              # 构建所有平台
+bash build.sh windows      # 仅构建 Windows
+bash build.sh linux        # 仅构建 Linux
+bash build.sh darwin       # 仅构建 macOS
 ```
+
+```powershell
+# Windows (PowerShell)
+.\build.ps1                # 构建所有平台
+.\build.ps1 -Target windows   # 仅构建 Windows
+.\build.ps1 -Target linux     # 仅构建 Linux
+.\build.ps1 -Target darwin    # 仅构建 macOS
+```
+
+构建产物输出到 `dist/` 目录，包含可执行文件、配置示例和 SHA256 校验文件。
+
+> 也可通过环境变量指定版本号：`VERSION=v1.0.0 bash build.sh`
 
 ### 运行 | Run
 
