@@ -1,5 +1,5 @@
-//go:build base64x
-// +build base64x
+//go:build base64x && amd64
+// +build base64x,amd64
 
 // Package base64 base64x实现（高性能） | base64x implementation (high performance)
 package base64

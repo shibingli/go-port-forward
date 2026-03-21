@@ -40,11 +40,15 @@ function Build-One {
 
     New-Item -ItemType Directory -Path $outDir -Force | Out-Null
 
-    Log "Building ${OS}/${Arch} ..."
+    # amd64 使用 sonic/base64x (依赖 x86 指令集)，其他架构使用 go_json 回退
+    # amd64 uses sonic/base64x (x86 instruction set), other archs fall back to go_json
+    $tags = if ($Arch -eq "amd64") { "base64x sonic" } else { "go_json" }
+
+    Log "Building ${OS}/${Arch} (tags: ${tags}) ..."
     $env:CGO_ENABLED = "0"
     $env:GOOS   = $OS
     $env:GOARCH = $Arch
-    go build -trimpath -ldflags $LDFlags -o (Join-Path $outDir $binName) .
+    go build -trimpath -tags $tags -ldflags $LDFlags -o (Join-Path $outDir $binName) .
     if ($LASTEXITCODE -ne 0) { throw "Build failed for ${OS}/${Arch}" }
 
     # 复制配置示例 | Copy sample config

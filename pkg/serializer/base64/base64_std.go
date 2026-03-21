@@ -1,5 +1,5 @@
-//go:build !base64x
-// +build !base64x
+//go:build !(base64x && amd64)
+// +build !base64x !amd64
 
 // Package base64 标准库实现（默认） | standard library implementation (default)
 package base64

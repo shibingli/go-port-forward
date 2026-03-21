@@ -33,9 +33,18 @@ build_one() {
     local out_dir="${OUTPUT_DIR}/${APP_NAME}-${VERSION}-${os}-${arch}"
     mkdir -p "$out_dir"
 
-    log "Building ${os}/${arch} ..."
+    # amd64 使用 sonic/base64x (依赖 x86 指令集)，其他架构使用 go_json 回退
+    # amd64 uses sonic/base64x (x86 instruction set), other archs fall back to go_json
+    local tags
+    if [[ "$arch" == "amd64" ]]; then
+        tags="base64x sonic"
+    else
+        tags="go_json"
+    fi
+
+    log "Building ${os}/${arch} (tags: ${tags}) ..."
     CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
-        go build -trimpath -ldflags "$LDFLAGS" -o "${out_dir}/${bin_name}" .
+        go build -trimpath -tags "$tags" -ldflags "$LDFLAGS" -o "${out_dir}/${bin_name}" .
 
     # 复制配置示例 | Copy sample config
     if [[ -f config.yaml ]]; then

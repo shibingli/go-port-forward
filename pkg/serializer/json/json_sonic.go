@@ -1,5 +1,5 @@
-//go:build sonic
-// +build sonic
+//go:build sonic && amd64
+// +build sonic,amd64
 
 // Package json 提供JSON序列化功能（sonic实现）
 // Package json provides JSON serialization functionality (sonic implementation)

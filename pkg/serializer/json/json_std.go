@@ -1,5 +1,7 @@
-//go:build !sonic && !go_json && !jsoniter
-// +build !sonic,!go_json,!jsoniter
+//go:build !(sonic && amd64) && !go_json && !jsoniter
+// +build !sonic !amd64
+// +build !go_json
+// +build !jsoniter
 
 // Package json 提供JSON序列化功能 | Package json provides JSON serialization functionality
 package json
