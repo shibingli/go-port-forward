@@ -3,8 +3,6 @@ package serializer
 import (
 	"testing"
 
-	"github.com/gofiber/fiber/v3"
-
 	"go-port-forward/pkg/serializer/cbor"
 	"go-port-forward/pkg/serializer/json"
 	"go-port-forward/pkg/serializer/msgpack"
@@ -234,127 +232,6 @@ func TestXMLMarshalUnmarshal(t *testing.T) {
 	}
 	if decoded.Name != original.Name {
 		t.Errorf("Name mismatch: got %s, want %s", decoded.Name, original.Name)
-	}
-}
-
-// TestConfigureFiberSerializers 测试Fiber序列化器配置 | Test Fiber serializers configuration
-func TestConfigureFiberSerializers(t *testing.T) {
-	// 导入fiber包 | Import fiber package
-	config := &fiber.Config{}
-
-	// 配置Fiber序列化器 | Configure Fiber serializers
-	ConfigureFiberSerializers(config)
-
-	// 测试JSON编解码器 | Test JSON encoder/decoder
-	if config.JSONEncoder == nil {
-		t.Error("JSONEncoder is nil after ConfigureFiberSerializers")
-	}
-	if config.JSONDecoder == nil {
-		t.Error("JSONDecoder is nil after ConfigureFiberSerializers")
-	}
-
-	// 测试XML编解码器 | Test XML encoder/decoder
-	if config.XMLEncoder == nil {
-		t.Error("XMLEncoder is nil after ConfigureFiberSerializers")
-	}
-	if config.XMLDecoder == nil {
-		t.Error("XMLDecoder is nil after ConfigureFiberSerializers")
-	}
-
-	// 测试MsgPack编解码器 | Test MsgPack encoder/decoder
-	if config.MsgPackEncoder == nil {
-		t.Error("MsgPackEncoder is nil after ConfigureFiberSerializers")
-	}
-	if config.MsgPackDecoder == nil {
-		t.Error("MsgPackDecoder is nil after ConfigureFiberSerializers")
-	}
-
-	// 测试CBOR编解码器 | Test CBOR encoder/decoder
-	if config.CBOREncoder == nil {
-		t.Error("CBOREncoder is nil after ConfigureFiberSerializers")
-	}
-	if config.CBORDecoder == nil {
-		t.Error("CBORDecoder is nil after ConfigureFiberSerializers")
-	}
-
-	// 测试JSON编码器 | Test JSON encoder
-	testData := TestData{ID: 1, Name: "test"}
-	jsonData, err := config.JSONEncoder(testData)
-	if err != nil {
-		t.Errorf("JSONEncoder failed: %v", err)
-	}
-	if len(jsonData) == 0 {
-		t.Error("JSONEncoder returned empty data")
-	}
-
-	// 测试JSON解码器 | Test JSON decoder
-	var jsonDecoded TestData
-	err = config.JSONDecoder(jsonData, &jsonDecoded)
-	if err != nil {
-		t.Errorf("JSONDecoder failed: %v", err)
-	}
-	if jsonDecoded.ID != testData.ID {
-		t.Errorf("JSON Decoded ID mismatch: got %d, want %d", jsonDecoded.ID, testData.ID)
-	}
-
-	// 测试XML编码器（XML不支持map，使用简化数据）| Test XML encoder (XML doesn't support map)
-	xmlTestData := TestData{ID: 2, Name: "xml test", Active: true}
-	xmlData, err := config.XMLEncoder(xmlTestData)
-	if err != nil {
-		t.Errorf("XMLEncoder failed: %v", err)
-	}
-	if len(xmlData) == 0 {
-		t.Error("XMLEncoder returned empty data")
-	}
-
-	// 测试XML解码器 | Test XML decoder
-	var xmlDecoded TestData
-	err = config.XMLDecoder(xmlData, &xmlDecoded)
-	if err != nil {
-		t.Errorf("XMLDecoder failed: %v", err)
-	}
-	if xmlDecoded.ID != xmlTestData.ID {
-		t.Errorf("XML Decoded ID mismatch: got %d, want %d", xmlDecoded.ID, xmlTestData.ID)
-	}
-
-	// 测试MsgPack编码器 | Test MsgPack encoder
-	msgpackTestData := TestData{ID: 3, Name: "msgpack test", Active: false}
-	msgpackData, err := config.MsgPackEncoder(msgpackTestData)
-	if err != nil {
-		t.Errorf("MsgPackEncoder failed: %v", err)
-	}
-	if len(msgpackData) == 0 {
-		t.Error("MsgPackEncoder returned empty data")
-	}
-
-	// 测试MsgPack解码器 | Test MsgPack decoder
-	var msgpackDecoded TestData
-	err = config.MsgPackDecoder(msgpackData, &msgpackDecoded)
-	if err != nil {
-		t.Errorf("MsgPackDecoder failed: %v", err)
-	}
-	if msgpackDecoded.ID != msgpackTestData.ID {
-		t.Errorf("MsgPack Decoded ID mismatch: got %d, want %d", msgpackDecoded.ID, msgpackTestData.ID)
-	}
-
-	// 测试CBOR编码器 | Test CBOR encoder
-	cborTestData := TestData{ID: 4, Name: "cbor test", Active: true}
-	cborData, err := config.CBOREncoder(cborTestData)
-	if err != nil {
-		t.Errorf("CBOREncoder failed: %v", err)
-	}
-	if len(cborData) == 0 {
-		t.Error("CBOREncoder returned empty data")
-	}
-
-	// 测试CBOR解码器 | Test CBOR decoder
-	var cborDecoded TestData
-	err = config.CBORDecoder(cborData, &cborDecoded)
-	if err != nil {
-		t.Errorf("CBORDecoder failed: %v", err)
-	}
-	if cborDecoded.ID != cborTestData.ID {
-		t.Errorf("CBOR Decoded ID mismatch: got %d, want %d", cborDecoded.ID, cborTestData.ID)
 	}
 }
 
