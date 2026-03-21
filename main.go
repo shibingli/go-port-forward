@@ -21,6 +21,14 @@ import (
 	"go-port-forward/pkg/pool"
 )
 
+// version and buildTime are set via ldflags at build time:
+//
+//	go build -ldflags "-X main.version=v1.0.0 -X main.buildTime=2025-01-01T00:00:00Z"
+var (
+	version   = "dev"
+	buildTime = "unknown"
+)
+
 const (
 	serviceName    = "go-port-forward"
 	serviceDisplay = "Go Port Forward"
@@ -82,12 +90,12 @@ func main() {
 
 // application wires all subsystems together and implements svc.Runner.
 type application struct {
-	configPath string
-	cfg        *config.AppConfig
 	store      storage.Store
+	cfg        *config.AppConfig
 	mgr        *forward.Manager
 	webSrv     *web.Server
 	gcSvc      *gc.Service
+	configPath string
 }
 
 func (a *application) Start() error {
@@ -102,7 +110,7 @@ func (a *application) Start() error {
 	if err := logger.Init(cfg.Log); err != nil {
 		return fmt.Errorf("logger: %w", err)
 	}
-	logger.S.Infow("starting", "name", serviceDisplay)
+	logger.S.Infow("starting", "name", serviceDisplay, "version", version, "build", buildTime)
 
 	// Bridge internal logger to pkg/logger so pkg/gc etc. can log
 	pkglogger.SetLogger(logger.L)

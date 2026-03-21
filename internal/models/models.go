@@ -27,26 +27,27 @@ const (
 
 // ForwardRule represents a single port forwarding rule
 type ForwardRule struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	ListenAddr  string    `json:"listen_addr"` // "" or "0.0.0.0" means all interfaces
-	ListenPort  int       `json:"listen_port"`
-	Protocol    Protocol  `json:"protocol"`
-	TargetAddr  string    `json:"target_addr"`
-	TargetPort  int       `json:"target_port"`
-	Enabled     bool      `json:"enabled"`
-	AddFirewall bool      `json:"add_firewall"` // auto-add firewall rule on creation
-	Comment     string    `json:"comment"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	ID         string   `json:"id"`
+	Name       string   `json:"name"`
+	ListenAddr string   `json:"listen_addr"` // "" or "0.0.0.0" means all interfaces
+	Protocol   Protocol `json:"protocol"`
+	TargetAddr string   `json:"target_addr"`
+	Comment    string   `json:"comment"`
 
 	// Runtime stats — not persisted
 	Status      RuleStatus `json:"status"`
 	ErrorMsg    string     `json:"error_msg,omitempty"` // reason the forwarder failed to start
+	ListenPort  int        `json:"listen_port"`
+	TargetPort  int        `json:"target_port"`
 	BytesIn     int64      `json:"bytes_in"`
 	BytesOut    int64      `json:"bytes_out"`
 	ActiveConns int64      `json:"active_conns"`
 	TotalConns  int64      `json:"total_conns"`
+	Enabled     bool       `json:"enabled"`
+	AddFirewall bool       `json:"add_firewall"` // auto-add firewall rule on creation
 }
 
 // ListenKey returns a unique key for the listen address+port+protocol combination
@@ -74,12 +75,12 @@ type WSLPort = wsl.Port
 type CreateRuleRequest struct {
 	Name        string   `json:"name"`
 	ListenAddr  string   `json:"listen_addr"`
-	ListenPort  int      `json:"listen_port"`
 	Protocol    Protocol `json:"protocol"`
 	TargetAddr  string   `json:"target_addr"`
+	Comment     string   `json:"comment"`
+	ListenPort  int      `json:"listen_port"`
 	TargetPort  int      `json:"target_port"`
 	AddFirewall bool     `json:"add_firewall"`
-	Comment     string   `json:"comment"`
 	Enabled     bool     `json:"enabled"`
 }
 
@@ -99,13 +100,13 @@ type UpdateRuleRequest struct {
 // WSLImportRequest is the API request for importing WSL2 ports
 type WSLImportRequest struct {
 	Distro     string    `json:"distro"`
-	Ports      []WSLPort `json:"ports"`
 	TargetAddr string    `json:"target_addr"` // WSL2 IP to forward to
+	Ports      []WSLPort `json:"ports"`
 }
 
 // APIResponse is a generic JSON API response wrapper
 type APIResponse struct {
-	Success bool        `json:"success"`
-	Message string      `json:"message,omitempty"`
 	Data    interface{} `json:"data,omitempty"`
+	Message string      `json:"message,omitempty"`
+	Success bool        `json:"success"`
 }

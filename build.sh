@@ -46,23 +46,23 @@ build_one() {
     CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
         go build -trimpath -tags "$tags" -ldflags "$LDFLAGS" -o "${out_dir}/${bin_name}" .
 
-    # 复制配置示例 | Copy sample config
-    if [[ -f config.yaml ]]; then
-        cp config.yaml "${out_dir}/config.yaml.example"
-    fi
+    # 复制配置示例和 LICENSE | Copy sample config & LICENSE
+    [[ -f config.yaml ]] && cp config.yaml "${out_dir}/config.yaml.example"
+    [[ -f LICENSE ]] && cp LICENSE "${out_dir}/LICENSE"
 
-    # 打包 | Package
+    # 打包 | Package (使用子 shell 避免 cd 污染当前目录)
     local archive
-    cd "$OUTPUT_DIR"
     local dirname="${APP_NAME}-${VERSION}-${os}-${arch}"
-    if [[ "$os" == "windows" ]]; then
-        archive="${dirname}.zip"
-        zip -qr "$archive" "$dirname"
-    else
-        archive="${dirname}.tar.gz"
-        tar -czf "$archive" "$dirname"
-    fi
-    cd ..
+    (
+        cd "$OUTPUT_DIR"
+        if [[ "$os" == "windows" ]]; then
+            archive="${dirname}.zip"
+            zip -qr "$archive" "$dirname"
+        else
+            archive="${dirname}.tar.gz"
+            tar -czf "$archive" "$dirname"
+        fi
+    )
 
     log "Packaged: ${OUTPUT_DIR}/${archive}"
 }
@@ -85,9 +85,15 @@ clean() {
 
 generate_checksums() {
     log "Generating checksums ..."
-    cd "$OUTPUT_DIR"
-    sha256sum *.tar.gz *.zip 2>/dev/null > checksums-sha256.txt || true
-    cd ..
+    # macOS 没有 sha256sum，回退到 shasum -a 256
+    local sha_cmd="sha256sum"
+    if ! command -v sha256sum &>/dev/null; then
+        sha_cmd="shasum -a 256"
+    fi
+    (
+        cd "$OUTPUT_DIR"
+        $sha_cmd *.tar.gz *.zip 2>/dev/null > checksums-sha256.txt || true
+    )
     log "Checksums: ${OUTPUT_DIR}/checksums-sha256.txt"
 }
 

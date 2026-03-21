@@ -51,9 +51,12 @@ function Build-One {
     go build -trimpath -tags $tags -ldflags $LDFlags -o (Join-Path $outDir $binName) .
     if ($LASTEXITCODE -ne 0) { throw "Build failed for ${OS}/${Arch}" }
 
-    # 复制配置示例 | Copy sample config
+    # 复制配置示例和 LICENSE | Copy sample config & LICENSE
     if (Test-Path "config.yaml") {
         Copy-Item "config.yaml" (Join-Path $outDir "config.yaml.example")
+    }
+    if (Test-Path "LICENSE") {
+        Copy-Item "LICENSE" (Join-Path $outDir "LICENSE")
     }
 
     # 打包 | Package
@@ -81,7 +84,7 @@ function Build-Targets {
 
 function Generate-Checksums {
     Log "Generating checksums ..."
-    $files = Get-ChildItem -Path $OutputDir -Include "*.tar.gz","*.zip" -File
+    $files = Get-ChildItem -Path (Join-Path $OutputDir "*") -Include "*.tar.gz","*.zip" -File
     $checksums = @()
     foreach ($f in $files) {
         $hash = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLower()
@@ -107,5 +110,5 @@ Build-Targets -Filter $Target
 Generate-Checksums
 
 Log "Done! All artifacts in $OutputDir/"
-Get-ChildItem -Path $OutputDir -Include "*.tar.gz","*.zip" -File | Format-Table Name, @{N="Size";E={"{0:N1} MB" -f ($_.Length / 1MB)}} -AutoSize
+Get-ChildItem -Path (Join-Path $OutputDir "*") -Include "*.tar.gz","*.zip" -File | Format-Table Name, @{N="Size";E={"{0:N1} MB" -f ($_.Length / 1MB)}} -AutoSize
 

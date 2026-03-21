@@ -19,12 +19,13 @@ import (
 
 // TCPForwarder listens on a local TCP port and forwards connections to a target.
 type TCPForwarder struct {
-	rule        *models.ForwardRule
+	listener net.Listener
+	rule     *models.ForwardRule
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
+
 	dialTimeout time.Duration
 	bufferSize  int
-	listener    net.Listener
-	cancel      context.CancelFunc
-	wg          sync.WaitGroup
 
 	// stats (atomic)
 	bytesIn     atomic.Int64

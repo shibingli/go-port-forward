@@ -6,8 +6,8 @@ import "go-port-forward/internal/models"
 // Rule represents a host firewall rule for a forwarding entry.
 type Rule struct {
 	Name     string
-	Port     int
 	Protocol models.Protocol
+	Port     int
 }
 
 // Manager is the OS-specific firewall controller.

@@ -12,18 +12,18 @@ import (
 type AppConfig struct {
 	Web     WebConfig     `mapstructure:"web"`
 	Storage StorageConfig `mapstructure:"storage"`
+	GC      GCConfig      `mapstructure:"gc"`
 	Log     LogConfig     `mapstructure:"log"`
 	Forward ForwardConfig `mapstructure:"forward"`
-	GC      GCConfig      `mapstructure:"gc"`
 	Pool    PoolConfig    `mapstructure:"pool"`
 }
 
 // WebConfig holds web server configuration.
 type WebConfig struct {
 	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
 	Username string `mapstructure:"username"` // basic auth; empty = disabled
 	Password string `mapstructure:"password"`
+	Port     int    `mapstructure:"port"`
 }
 
 // StorageConfig holds storage configuration.
@@ -51,10 +51,10 @@ type ForwardConfig struct {
 
 // GCConfig holds garbage collection management configuration.
 type GCConfig struct {
-	Enabled           bool   `mapstructure:"enabled"`             // enable periodic GC
-	IntervalSeconds   int    `mapstructure:"interval_seconds"`    // GC interval in seconds
 	Strategy          string `mapstructure:"strategy"`            // standard, aggressive, gentle, adaptive
+	IntervalSeconds   int    `mapstructure:"interval_seconds"`    // GC interval in seconds
 	MemoryThresholdMB int    `mapstructure:"memory_threshold_mb"` // memory threshold in MB (0 = disabled)
+	Enabled           bool   `mapstructure:"enabled"`             // enable periodic GC
 	EnableMonitoring  bool   `mapstructure:"enable_monitoring"`   // enable performance monitoring
 }
 

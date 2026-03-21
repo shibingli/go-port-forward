@@ -18,10 +18,10 @@ var staticFiles embed.FS
 
 // Server is the HTTP API + UI server.
 type Server struct {
-	cfg     config.WebConfig
-	manager *forward.Manager
 	fw      firewall.Manager
+	manager *forward.Manager
 	httpSrv *http.Server
+	cfg     config.WebConfig
 }
 
 // New creates a configured Server.

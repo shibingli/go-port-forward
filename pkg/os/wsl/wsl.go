@@ -25,9 +25,9 @@ type Distro struct {
 // Port represents a listening port inside a WSL2 distribution.
 type Port struct {
 	Protocol  string `json:"protocol"`
-	Port      int    `json:"port"`
 	Process   string `json:"process"`
 	LocalAddr string `json:"local_addr"`
+	Port      int    `json:"port"`
 }
 
 // decodeUTF16LE 将 UTF-16LE 编码的字节解码为 UTF-8 字符串

@@ -24,15 +24,15 @@ type udpSession struct {
 type UDPForwarder struct {
 	rule       *models.ForwardRule
 	conn       *net.UDPConn
-	timeout    time.Duration
 	sessions   map[string]*udpSession
-	mu         sync.Mutex
 	stopCh     chan struct{}
-	stopOnce   sync.Once
 	wg         sync.WaitGroup
+	timeout    time.Duration
 	bytesIn    atomic.Int64
 	bytesOut   atomic.Int64
 	totalConns atomic.Int64
+	stopOnce   sync.Once
+	mu         sync.Mutex
 }
 
 func newUDPForwarder(rule *models.ForwardRule, timeoutSec int) *UDPForwarder {

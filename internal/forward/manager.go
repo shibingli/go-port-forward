@@ -22,10 +22,10 @@ type entry struct {
 // Manager owns the lifecycle of all active forwarders.
 type Manager struct {
 	store  storage.Store
-	cfg    config.ForwardConfig
-	mu     sync.RWMutex
 	active map[string]*entry // rule ID → forwarders
 	errors map[string]string // rule ID → last error message
+	cfg    config.ForwardConfig
+	mu     sync.RWMutex
 }
 
 // NewManager creates a Manager and loads existing rules from storage.
