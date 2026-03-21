@@ -1,0 +1,170 @@
+/*
+ * theme.css — 主题变量定义 | Theme variable definitions
+ * 定义全局 CSS 变量，供 app.css 和组件使用
+ * Defines global CSS variables used by app.css and components
+ *
+ * 加载顺序 Load order:
+ * 1. lib/bootstrap.min.css
+ * 2. theme.css (本文件 this file)
+ * 3. app.css
+ * 4. user-theme.css (动态覆盖 dynamic overrides)
+ */
+
+/* ========================================
+   浅色模式变量（默认）| Light mode variables (default)
+   ======================================== */
+:root,
+[data-bs-theme="light"] {
+    /* 主色调 - 深蓝色系（稳重、专业）| Primary - Deep blue (stable, professional) */
+    --color-primary: #154979;
+    --color-primary-light: #3D71A1;
+    --color-primary-dark: #002B5B;
+    --color-primary-bg: #EEF3F8;
+    --color-primary-rgb: 21, 73, 121;
+
+    /* 功能色 | Functional colors */
+    --color-success: #2E7D32;
+    --color-warning: #E65100;
+    --color-danger: #C62828;
+    --color-info: #1565C0;
+
+    /* 中性色 | Neutral colors */
+    --color-text-primary: #1A1A1A;
+    --color-text-secondary: #666666;
+    --color-text-disabled: #999999;
+    --color-border: #D9D9D9;
+    --color-bg-page: #F5F5F5;
+    --color-bg-card: #FFFFFF;
+    --color-bg-sidebar: #154979;
+    --color-bg-header: #FFFFFF;
+    --color-bg-hover: rgba(0, 0, 0, 0.04);
+
+    /* 侧边栏 | Sidebar */
+    --sidebar-text: rgba(255, 255, 255, 0.85);
+    --sidebar-text-active: #FFFFFF;
+    --sidebar-hover-bg: rgba(255, 255, 255, 0.1);
+    --sidebar-active-bg: rgba(255, 255, 255, 0.15);
+    --sidebar-width: 240px;
+    --sidebar-collapsed-width: 64px;
+
+    /* 顶部导航栏 | Header */
+    --header-height: 56px;
+    --header-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+
+    /* 字体 | Typography */
+    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --font-mono: "SFMono-Regular", Consolas, "Liberation Mono",
+    Menlo, "Microsoft YaHei Mono", monospace;
+    --font-size-xs: 13px;
+    --font-size-sm: 14px;
+    --font-size-base: 15px;
+    --font-size-md: 17px;
+    --font-size-lg: 20px;
+    --font-size-xl: 26px;
+    --font-size-xxl: 32px;
+    --line-height-base: 1.6;
+    --line-height-sm: 1.35;
+
+    /* 间距（基于 4px 网格）| Spacing (4px grid) */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+    --spacing-xxl: 48px;
+
+    /* 圆角 | Border radius */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 10px;
+
+    /* 阴影 | Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.12);
+
+    /* 过渡 | Transitions */
+    --transition-fast: 150ms ease;
+    --transition-base: 250ms ease;
+    --transition-slow: 350ms ease;
+
+    /* 代码块背景 | Code block background */
+    --color-bg-code: #1e1e2e;
+    --color-text-code: #d4d4d4;
+    /* 浅色底色（替代 bg-light）| Subtle background (replaces bg-light) */
+    --color-bg-subtle: #F0F0F0;
+
+    /* 内容区 | Content area */
+    --content-padding: var(--spacing-lg);
+
+    /* 信息密度 | Information density */
+    --table-row-height: 44px;
+    --card-spacing: var(--spacing-lg);
+
+    /* Bootstrap 变量覆盖 | Bootstrap variable overrides */
+    --bs-primary: var(--color-primary);
+    --bs-primary-rgb: var(--color-primary-rgb);
+    --bs-body-font-family: var(--font-family);
+    --bs-body-font-size: var(--font-size-base);
+    --bs-body-line-height: var(--line-height-base);
+    --bs-body-color: var(--color-text-primary);
+    --bs-body-bg: var(--color-bg-page);
+    --bs-border-color: var(--color-border);
+    --bs-border-radius: var(--radius-md);
+    --bs-border-radius-sm: var(--radius-sm);
+    --bs-border-radius-lg: var(--radius-lg);
+}
+
+/* ========================================
+   暗色模式变量 | Dark mode variables
+   ======================================== */
+[data-bs-theme="dark"] {
+    --color-primary: #4A90D9;
+    --color-primary-light: #6AADE0;
+    --color-primary-dark: #2A5A8C;
+    --color-primary-bg: #1A2332;
+    --color-primary-rgb: 74, 144, 217;
+
+    --color-success: #4CAF50;
+    --color-warning: #FF9800;
+    --color-danger: #EF5350;
+    --color-info: #42A5F5;
+
+    --color-text-primary: #E0E0E0;
+    --color-text-secondary: #A0A0A0;
+    --color-text-disabled: #666666;
+    --color-border: #3A3A3A;
+    --color-bg-page: #121212;
+    --color-bg-card: #1E1E1E;
+    --color-bg-sidebar: #0A1E35;
+    --color-bg-header: #1E1E1E;
+    --color-bg-hover: rgba(255, 255, 255, 0.06);
+    /* 代码块背景 | Code block background */
+    --color-bg-code: #0d1117;
+    --color-text-code: #c9d1d9;
+    /* 浅色底色（替代 bg-light）| Subtle background (replaces bg-light) */
+    --color-bg-subtle: #2a2a2a;
+
+    --sidebar-text: rgba(255, 255, 255, 0.75);
+    --sidebar-hover-bg: rgba(255, 255, 255, 0.08);
+    --sidebar-active-bg: rgba(255, 255, 255, 0.12);
+
+    --header-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.4);
+
+    /* Bootstrap 变量覆盖（暗色模式）| Bootstrap variable overrides (dark mode) */
+    --bs-body-color: var(--color-text-primary);
+    --bs-body-bg: var(--color-bg-page);
+    --bs-border-color: var(--color-border);
+    --bs-tertiary-bg: var(--color-bg-subtle);
+    --bs-secondary-color: var(--color-text-secondary);
+    --bs-secondary-bg: #2a2a2a;
+    --bs-emphasis-color: #FFFFFF;
+    --bs-emphasis-color-rgb: 255, 255, 255;
+}
+

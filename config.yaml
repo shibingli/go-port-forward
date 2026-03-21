@@ -1,0 +1,26 @@
+forward:
+    buffer_size: 32768
+    dial_timeout: 10
+    pool_size: 0
+    udp_timeout: 30
+gc:
+    enable_monitoring: true
+    enabled: true
+    interval_seconds: 300
+    memory_threshold_mb: 100
+    strategy: standard
+log:
+    compress: true
+    level: info
+    max_age_days: 30
+    max_backups: 5
+    max_size_mb: 50
+    path: D:\developer\go_code\go-port-forward\logs\app.log
+pool:
+    pre_alloc: true
+    size: 10000
+storage:
+    path: D:\developer\go_code\go-port-forward\data\rules.db
+web:
+    host: 127.0.0.1
+    port: 8080
