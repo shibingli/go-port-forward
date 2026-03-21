@@ -16,6 +16,44 @@ A high-performance cross-platform TCP/UDP port forwarder with a built-in Web UI.
 - **自动 GC 管理** — 内存阈值触发 + 定时 GC，多种回收策略可选
 - **YAML 配置** — 首次运行自动生成默认配置文件
 
+## 🎯 痛点分析 | Pain Points
+
+| 痛点 | 传统方案 | Go Port Forward 解决方式 |
+|------|----------|--------------------------|
+| **WSL2 端口不可达** | 每次重启后手动执行 `netsh interface portproxy` 命令，IP 地址经常变化 | 自动发现 WSL2 发行版 IP 与监听端口，一键导入转发规则，重启后自动恢复 |
+| **防火墙规则繁琐** | 需要在 Windows/Linux/macOS 上分别记忆 netsh / iptables / pfctl 命令语法 | 跨平台统一 API，创建转发规则时自动添加防火墙放行，删除时自动清理 |
+| **缺少可视化管理** | SSH 隧道、socat、rinetd 等工具均为命令行操作，难以一目了然查看所有规则状态 | 内置 Web UI，实时查看规则状态、连接数与流量统计，支持增删改查与一键启停 |
+| **进程退出规则丢失** | iptables 转发规则或 socat 进程重启后消失，需手写 systemd 脚本保持持久化 | 基于 bbolt 嵌入式数据库持久化所有规则，服务启动时自动恢复所有活跃转发 |
+| **高并发性能不足** | socat 每连接 fork 进程，rinetd 单线程阻塞模型，面对大量连接时资源消耗大 | 基于 Go 协程 + ants 协程池，万级并发连接下内存占用可控 |
+| **部署依赖复杂** | 需要安装 Python/Node.js 运行时或依赖外部数据库 | 单个二进制文件零依赖部署，内嵌 Web 资源与 KV 存储，开箱即用 |
+| **跨平台不统一** | 不同工具在 Windows/Linux/macOS 上配置方式完全不同 | 同一份代码与配置，三大平台行为一致，支持注册为系统服务 |
+
+## 🏗️ 应用场景 | Use Cases
+
+### 1. WSL2 开发环境端口暴露
+
+在 Windows 上使用 WSL2 进行开发时，WSL2 内部的服务（如 Nginx、MySQL、Redis）默认无法被局域网其他设备访问。Go Port Forward 可自动发现 WSL2 中的监听端口并创建转发规则，让同事的手机或其他电脑直接访问你的开发环境。
+
+### 2. 内网服务统一转发网关
+
+在企业内网中，多台服务器上运行着不同端口的服务。通过在一台网关机器上部署 Go Port Forward，可将所有服务端口集中转发和管理，Web UI 提供清晰的规则总览与流量监控。
+
+### 3. 容器 / 虚拟机端口映射
+
+Docker 容器、VMware/VirtualBox 虚拟机的网络模式（NAT、Host-Only）经常导致端口不可达。使用 Go Port Forward 在宿主机上建立转发规则，无需修改容器或虚拟机网络配置即可对外提供服务。
+
+### 4. 远程调试与测试
+
+后端开发人员需要将本地运行的 API 服务暴露给前端/测试同事访问。通过 Go Port Forward 将 `127.0.0.1:3000` 转发到 `0.0.0.0:3000`，配合自动防火墙放行，一键完成端口对外开放。
+
+### 5. UDP 游戏/音视频服务转发
+
+游戏服务器、VoIP、视频流等场景需要 UDP 转发能力。Go Port Forward 同时支持 TCP 和 UDP 协议转发，并可选择 `both` 模式双协议同时转发，无需部署两套工具。
+
+### 6. 轻量级生产环境端口网关
+
+在不需要 Nginx/HAProxy 完整反向代理功能的场景下（如纯 TCP 数据库代理、IoT 设备通信网关），Go Port Forward 可作为轻量级的四层端口网关，单二进制部署、资源占用极低。
+
 ## 📦 项目结构 | Project Structure
 
 ```
@@ -145,5 +183,7 @@ gc:
 
 ## 📄 License
 
-MIT
+本项目基于 [Apache License 2.0](LICENSE) 许可证开源。
+
+Licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0).
 
