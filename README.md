@@ -1,6 +1,6 @@
 # Go Port Forward
 
-高性能跨平台 TCP/UDP 端口转发工具，内置 Web 管理界面。
+高性能跨平台 TCP/UDP/Both 端口转发工具，内置 Web 管理界面。
 
 A high-performance cross-platform TCP/UDP port forwarder with a built-in Web UI.
 
