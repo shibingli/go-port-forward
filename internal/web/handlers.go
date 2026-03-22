@@ -23,8 +23,8 @@ type handler struct {
 }
 
 type dashboardResponse struct {
-	Rules []*models.ForwardRule `json:"rules"`
 	Stats *models.Stats         `json:"stats"`
+	Rules []*models.ForwardRule `json:"rules"`
 }
 
 // --- helpers ---

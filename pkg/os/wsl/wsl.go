@@ -32,13 +32,13 @@ type Port struct {
 
 // Capability describes whether WSL-based features can be used by the UI/API.
 type Capability struct {
+	Reason     string   `json:"reason,omitempty"`
+	Distros    []Distro `json:"distros,omitempty"`
 	Supported  bool     `json:"supported"`
 	Installed  bool     `json:"installed"`
 	Enabled    bool     `json:"enabled"`
 	HasDistros bool     `json:"has_distros"`
 	ShowImport bool     `json:"show_import"`
-	Reason     string   `json:"reason,omitempty"`
-	Distros    []Distro `json:"distros,omitempty"`
 }
 
 // ErrNotSupported indicates that WSL integration is unavailable on the current OS.

@@ -23,19 +23,21 @@ type TCPForwarder struct {
 	listener net.Listener
 	rule     *models.ForwardRule
 	cancel   context.CancelFunc
-	wg       sync.WaitGroup
-	stopOnce sync.Once
+	conns    map[net.Conn]struct{}
+
+	wg sync.WaitGroup
 
 	dialTimeout time.Duration
 	bufferSize  int
-	connMu      sync.Mutex
-	conns       map[net.Conn]struct{}
 
 	// stats (atomic)
 	bytesIn     atomic.Int64
 	bytesOut    atomic.Int64
 	activeConns atomic.Int64
 	totalConns  atomic.Int64
+	stopOnce    sync.Once
+
+	connMu sync.Mutex
 }
 
 func newTCPForwarder(rule *models.ForwardRule, dialTimeoutSec, bufferSize int) *TCPForwarder {
@@ -152,8 +154,7 @@ func (f *TCPForwarder) handleConn(ctx context.Context, src net.Conn, rule *model
 	// client → target: after EOF from client, half-close the target write side
 	go func() {
 		defer wg.Done()
-		n := f.copyBuf(dst, src)
-		f.bytesIn.Add(n)
+		f.copyBufCounting(dst, src, &f.bytesIn)
 		if tc, ok := dst.(*net.TCPConn); ok {
 			_ = tc.CloseWrite()
 		}
@@ -161,8 +162,7 @@ func (f *TCPForwarder) handleConn(ctx context.Context, src net.Conn, rule *model
 	// target → client: after EOF from target, half-close the client write side
 	go func() {
 		defer wg.Done()
-		n := f.copyBuf(src, dst)
-		f.bytesOut.Add(n)
+		f.copyBufCounting(src, dst, &f.bytesOut)
 		if tc, ok := src.(*net.TCPConn); ok {
 			_ = tc.CloseWrite()
 		}
@@ -170,12 +170,26 @@ func (f *TCPForwarder) handleConn(ctx context.Context, src net.Conn, rule *model
 	wg.Wait()
 }
 
-// copyBuf copies from src to dst using a pooled buffer from pkg/pool; returns bytes written.
-func (f *TCPForwarder) copyBuf(dst io.Writer, src io.Reader) int64 {
+// countingWriter wraps an io.Writer and atomically accumulates bytes written in real time.
+type countingWriter struct {
+	w       io.Writer
+	counter *atomic.Int64
+}
+
+func (cw *countingWriter) Write(p []byte) (int, error) {
+	n, err := cw.w.Write(p)
+	if n > 0 {
+		cw.counter.Add(int64(n))
+	}
+	return n, err
+}
+
+// copyBufCounting copies from src to dst using a pooled buffer, updating counter on every write.
+func (f *TCPForwarder) copyBufCounting(dst io.Writer, src io.Reader, counter *atomic.Int64) {
 	buf := pool.GetBuffer(f.bufferSize)
 	defer pool.PutBuffer(buf)
-	n, _ := io.CopyBuffer(dst, src, buf)
-	return n
+	cw := &countingWriter{w: dst, counter: counter}
+	_, _ = io.CopyBuffer(cw, src, buf)
 }
 
 func (f *TCPForwarder) Stats() (bytesIn, bytesOut, active, total int64) {
