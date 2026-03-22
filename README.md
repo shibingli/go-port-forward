@@ -11,6 +11,10 @@ A high-performance cross-platform TCP/UDP port forwarder with a built-in Web UI.
 | 🌐 Github 主站 | https://github.com/shibingli/go-port-forward |
 | 🪞 Gitee 镜像站 | https://gitee.com/shibingli/go-port-forward  |
 
+## 下载 | Download
+
+[点击下载](https://github.com/shibingli/go-port-forward/releases)
+
 ## 📸 截图 | Screenshots
 
 ### 首页 | Dashboard
