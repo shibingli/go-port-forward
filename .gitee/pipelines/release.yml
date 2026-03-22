@@ -1,0 +1,90 @@
+# release.yml — 当推送 v*.*.* 格式的 tag 时，自动交叉编译全平台产物并上传制品库
+# Gitee Go Pipeline 配置
+# 制品库需提前在 Gitee Go 控制台创建，唯一标识为 release-artifacts
+name: gitee-go-release
+displayName: 'Build & Release'
+triggers:
+  push:
+    - matchType: REGEX
+      branch: master
+commitMessage: ''
+stages:
+  - stage:
+      name: build-all-platforms
+      displayName: '全平台交叉编译'
+      failFast: false
+      steps:
+        - step: golangbuild@1
+          name: cross-compile
+          displayName: '交叉编译全平台产物'
+          inputs:
+            golangVersion: 1.26
+            goals: |
+              set -e
+
+              APP_NAME="go-port-forward"
+
+              # 从最新 tag 获取版本号，若无 tag 则使用 dev
+              VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+              BUILD_TIME=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+              LDFLAGS="-s -w -X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}"
+
+              echo "==> Building ${APP_NAME} ${VERSION} (${BUILD_TIME})"
+
+              # 定义构建目标: GOOS GOARCH TAGS EXT
+              TARGETS=(
+                "windows amd64 base64x,sonic .exe"
+                "windows arm64 go_json .exe"
+                "linux   amd64 base64x,sonic "
+                "linux   arm64 go_json "
+                "linux   arm   go_json "
+                "darwin  amd64 base64x,sonic "
+                "darwin  arm64 go_json "
+              )
+
+              mkdir -p output
+
+              for target in "${TARGETS[@]}"; do
+                read -r OS ARCH TAGS EXT <<< "$target"
+                DIR_NAME="${APP_NAME}-${VERSION}-${OS}-${ARCH}"
+                OUT_DIR="output/${DIR_NAME}"
+                mkdir -p "${OUT_DIR}"
+
+                echo "==> Building ${OS}/${ARCH} (tags: ${TAGS})"
+                CGO_ENABLED=0 GOOS=${OS} GOARCH=${ARCH} \
+                  go build -trimpath \
+                    -tags "${TAGS}" \
+                    -ldflags "${LDFLAGS}" \
+                    -o "${OUT_DIR}/${APP_NAME}${EXT}" .
+
+                # 复制配置示例和 LICENSE
+                [ -f config.yaml ] && cp config.yaml "${OUT_DIR}/config.yaml.example"
+                [ -f LICENSE ] && cp LICENSE "${OUT_DIR}/LICENSE"
+
+                # 打包
+                cd output
+                if [ "${OS}" = "windows" ]; then
+                  zip -qr "${DIR_NAME}.zip" "${DIR_NAME}"
+                else
+                  tar -czf "${DIR_NAME}.tar.gz" "${DIR_NAME}"
+                fi
+                cd ..
+
+                # 清理目录，只保留压缩包
+                rm -rf "${OUT_DIR}"
+              done
+
+              # 生成校验和
+              cd output
+              sha256sum *.tar.gz *.zip 2>/dev/null > checksums-sha256.txt || true
+              echo "==> Checksums:"
+              cat checksums-sha256.txt
+              echo "==> Build complete. Artifacts:"
+              ls -lh
+
+            uploadArtifact: true
+            uploadArtifactOptions:
+              artifactPath: 'output'
+              artifactRepository: 'release-artifacts'
+              artifactName: 'release'
+
