@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"crypto/subtle"
 	"embed"
 	"fmt"
 	"go-port-forward/internal/config"
@@ -9,7 +10,9 @@ import (
 	"go-port-forward/internal/forward"
 	"go-port-forward/internal/logger"
 	"io/fs"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -35,6 +38,10 @@ func (s *Server) Start() error {
 	s.registerRoutes(mux)
 
 	addr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("listen %s: %w", addr, err)
+	}
 	s.httpSrv = &http.Server{
 		Addr:         addr,
 		Handler:      s.middlewareChain(mux),
@@ -45,7 +52,7 @@ func (s *Server) Start() error {
 
 	go func() {
 		logger.S.Infow("Web UI listening", "addr", "http://"+addr)
-		if err := s.httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := s.httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			logger.S.Errorw("HTTP server error", "err", err)
 		}
 	}()
@@ -90,13 +97,16 @@ func (s *Server) middlewareChain(next http.Handler) http.Handler {
 	}
 	// Request logger
 	next = requestLogger(next)
+	next = securityHeaders(next)
 	return next
 }
 
 func basicAuth(user, pass string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, p, ok := r.BasicAuth()
-		if !ok || u != user || p != pass {
+		userOK := subtle.ConstantTimeCompare([]byte(u), []byte(user)) == 1
+		passOK := subtle.ConstantTimeCompare([]byte(p), []byte(pass)) == 1
+		if !ok || !userOK || !passOK {
 			w.Header().Set("WWW-Authenticate", `Basic realm="go-port-forward"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -111,5 +121,17 @@ func requestLogger(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 		logger.S.Debugw("HTTP", "method", r.Method, "path", r.URL.Path,
 			"duration", time.Since(start).String())
+	})
+}
+
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			w.Header().Set("Cache-Control", "no-store")
+		}
+		next.ServeHTTP(w, r)
 	})
 }

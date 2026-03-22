@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"go-port-forward/internal/models"
 	"go-port-forward/pkg/serializer/json"
@@ -10,6 +11,9 @@ import (
 )
 
 var rulesBucket = []byte("rules")
+
+// ErrRuleNotFound indicates the requested rule does not exist in storage.
+var ErrRuleNotFound = errors.New("rule not found")
 
 // Store provides persistent storage for forwarding rules.
 type Store interface {
@@ -62,7 +66,7 @@ func (s *boltStore) GetRule(id string) (*models.ForwardRule, error) {
 	err := s.db.View(func(tx *bolt.Tx) error {
 		v := tx.Bucket(rulesBucket).Get([]byte(id))
 		if v == nil {
-			return fmt.Errorf("rule %q not found", id)
+			return fmt.Errorf("%w: %s", ErrRuleNotFound, id)
 		}
 		return json.Unmarshal(v, &rule)
 	})
@@ -84,7 +88,11 @@ func (s *boltStore) SaveRule(rule *models.ForwardRule) error {
 
 func (s *boltStore) DeleteRule(id string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(rulesBucket).Delete([]byte(id))
+		b := tx.Bucket(rulesBucket)
+		if b.Get([]byte(id)) == nil {
+			return fmt.Errorf("%w: %s", ErrRuleNotFound, id)
+		}
+		return b.Delete([]byte(id))
 	})
 }
 

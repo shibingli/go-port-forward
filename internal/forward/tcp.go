@@ -2,6 +2,7 @@ package forward
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -81,10 +82,17 @@ func (f *TCPForwarder) acceptLoop(ctx context.Context) {
 	for {
 		conn, err := f.listener.Accept()
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
 			select {
 			case <-ctx.Done():
 				return
 			default:
+				if ne, ok := errors.AsType[net.Error](err); ok && ne.Temporary() {
+					time.Sleep(50 * time.Millisecond)
+					continue
+				}
 				logger.S.Warnw("TCP accept error", "rule", f.rule.Name, "err", err)
 				return
 			}

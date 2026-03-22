@@ -15,6 +15,8 @@ import (
 // psUTF8Prefix forces PowerShell to output UTF-8 so we avoid UTF-16 BOM issues.
 const psUTF8Prefix = "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; "
 
+var reWSLDistroLine = regexp.MustCompile(`^\s*(\*?)\s*(.*?)\s{2,}(\S+)\s+(\S+)\s*$`)
+
 // findPowerShell returns the path to the best available PowerShell executable.
 // It prefers the modern cross-platform "pwsh" over the legacy "powershell".
 func findPowerShell() string {
@@ -53,17 +55,15 @@ func ListDistros() ([]Distro, error) {
 		if line == "" {
 			continue
 		}
-		isDefault := strings.HasPrefix(line, "*")
-		line = strings.TrimPrefix(line, "*")
-		fields := strings.Fields(line)
-		if len(fields) < 3 {
+		m := reWSLDistroLine.FindStringSubmatch(line)
+		if len(m) != 5 {
 			continue
 		}
 		distros = append(distros, Distro{
-			Name:    fields[0],
-			State:   fields[1],
-			Version: fields[2],
-			Default: isDefault,
+			Name:    strings.TrimSpace(m[2]),
+			State:   m[3],
+			Version: m[4],
+			Default: m[1] == "*",
 		})
 	}
 	return distros, nil
@@ -76,8 +76,9 @@ func GetIP(distro string) (string, error) {
 	if err != nil {
 		// Fallback: query via PowerShell
 		ps := findPowerShell()
+		quotedDistro := quotePowerShellLiteral(distro)
 		out, err2 := pkgexec.ExecCommand(ps, "-NoProfile", "-NonInteractive", "-Command",
-			psUTF8Prefix+"wsl -d "+distro+" -- hostname -I").Output()
+			psUTF8Prefix+"wsl -d "+quotedDistro+" -- hostname -I").Output()
 		if err2 != nil {
 			return "", fmt.Errorf("wsl get IP for %s: %w", distro, err)
 		}
@@ -171,4 +172,8 @@ func listPortsByProto(distro, proto string) ([]Port, error) {
 		})
 	}
 	return ports, nil
+}
+
+func quotePowerShellLiteral(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }

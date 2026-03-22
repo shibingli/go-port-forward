@@ -1,6 +1,7 @@
 package forward
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -24,6 +25,7 @@ type udpSession struct {
 type UDPForwarder struct {
 	rule       *models.ForwardRule
 	conn       *net.UDPConn
+	targetAddr *net.UDPAddr
 	sessions   map[string]*udpSession
 	stopCh     chan struct{}
 	wg         sync.WaitGroup
@@ -36,6 +38,9 @@ type UDPForwarder struct {
 }
 
 func newUDPForwarder(rule *models.ForwardRule, timeoutSec int) *UDPForwarder {
+	if timeoutSec <= 0 {
+		timeoutSec = 30
+	}
 	return &UDPForwarder{
 		rule:     rule,
 		timeout:  time.Duration(timeoutSec) * time.Second,
@@ -54,7 +59,13 @@ func (f *UDPForwarder) Start() error {
 	if err != nil {
 		return fmt.Errorf("UDP 监听失败 | UDP listen failed %s: %w", listenAddr, err)
 	}
+	targetAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", f.rule.TargetAddr, f.rule.TargetPort))
+	if err != nil {
+		_ = conn.Close()
+		return fmt.Errorf("UDP 目标地址无效 | invalid UDP target address: %w", err)
+	}
 	f.conn = conn
+	f.targetAddr = targetAddr
 
 	f.wg.Add(2)
 	go f.readLoop()
@@ -88,10 +99,17 @@ func (f *UDPForwarder) readLoop() {
 	for {
 		n, srcAddr, err := f.conn.ReadFromUDP(buf)
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
 			select {
 			case <-f.stopCh:
 				return
 			default:
+				if ne, ok := errors.AsType[net.Error](err); ok && ne.Temporary() {
+					time.Sleep(50 * time.Millisecond)
+					continue
+				}
 				logger.L.Warn("UDP read error", zap.Error(err))
 				return
 			}
@@ -111,16 +129,10 @@ func (f *UDPForwarder) forward(srcAddr *net.UDPAddr, data []byte) {
 	f.mu.Lock()
 	sess, ok := f.sessions[key]
 	if !ok {
-		targetAddr := fmt.Sprintf("%s:%d", f.rule.TargetAddr, f.rule.TargetPort)
-		upAddr, err := net.ResolveUDPAddr("udp", targetAddr)
+		up, err := net.DialUDP("udp", nil, f.targetAddr)
 		if err != nil {
 			f.mu.Unlock()
-			return
-		}
-		up, err := net.DialUDP("udp", nil, upAddr)
-		if err != nil {
-			f.mu.Unlock()
-			logger.L.Warn("UDP dial failed", zap.String("target", targetAddr), zap.Error(err))
+			logger.L.Warn("UDP dial failed", zap.String("target", f.targetAddr.String()), zap.Error(err))
 			return
 		}
 		sess = &udpSession{upstream: up, lastSeen: time.Now()}

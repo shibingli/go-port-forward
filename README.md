@@ -45,7 +45,7 @@ A high-performance cross-platform TCP/UDP port forwarder with a built-in Web UI.
 | **防火墙规则繁琐**    | 需要在 Windows/Linux/macOS 上分别记忆 netsh / iptables / pfctl 命令语法 | 跨平台统一 API，创建转发规则时自动添加防火墙放行，删除时自动清理      |
 | **缺少可视化管理**    | SSH 隧道、socat、rinetd 等工具均为命令行操作，难以一目了然查看所有规则状态               | 内置 Web UI，实时查看规则状态、连接数与流量统计，支持增删改查与一键启停 |
 | **进程退出规则丢失**   | iptables 转发规则或 socat 进程重启后消失，需手写 systemd 脚本保持持久化            | 基于 bbolt 嵌入式数据库持久化所有规则，服务启动时自动恢复所有活跃转发  |
-| **高并发性能不足**    | socat 每连接 fork 进程，rinetd 单线程阻塞模型，面对大量连接时资源消耗大               | 基于 Go 协程 + ants 协程池，万级并发连接下内存占用可控       |
+| **高并发性能不足**    | socat 每连接 fork 进程，rinetd 单线程阻塞模型，面对大量连接时资源消耗大               | 基于 Go 协程 + ants 协程池，高并发连接下内存占用可控        |
 | **部署依赖复杂**     | 需要安装 Python/Node.js 运行时或依赖外部数据库                             | 单个二进制文件零依赖部署，内嵌 Web 资源与 KV 存储，开箱即用      |
 | **跨平台不统一**     | 不同工具在 Windows/Linux/macOS 上配置方式完全不同                         | 同一份代码与配置，三大平台行为一致，支持注册为系统服务             |
 
@@ -231,6 +231,8 @@ gc:
 | `GET`    | `/api/wsl/distros`        | 列出 WSL2 发行版  |
 | `GET`    | `/api/wsl/ports/{distro}` | 列出发行版监听端口    |
 | `POST`   | `/api/wsl/import`         | 批量导入 WSL2 端口 |
+
+> 说明：WSL 相关接口仅在 Windows 上可用；在 Linux/macOS 上会返回 `501 Not Implemented`。
 
 ## 📋 系统要求 | Requirements
 

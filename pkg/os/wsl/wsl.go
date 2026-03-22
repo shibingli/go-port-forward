@@ -30,6 +30,9 @@ type Port struct {
 	Port      int    `json:"port"`
 }
 
+// ErrNotSupported indicates that WSL integration is unavailable on the current OS.
+var ErrNotSupported = errors.New("WSL is not supported on this operating system")
+
 // decodeUTF16LE 将 UTF-16LE 编码的字节解码为 UTF-8 字符串
 // Decode UTF-16LE encoded bytes to UTF-8 string
 // Windows 的 wsl.exe 命令输出使用 UTF-16LE 编码，Go 的 exec.Command 读取原始字节，

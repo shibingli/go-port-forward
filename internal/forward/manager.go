@@ -1,6 +1,7 @@
 package forward
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -12,6 +13,13 @@ import (
 	"go-port-forward/pkg/pool"
 
 	"github.com/google/uuid"
+)
+
+var (
+	// ErrInvalidRule indicates invalid or out-of-range rule input.
+	ErrInvalidRule = errors.New("invalid rule")
+	// ErrPortConflict indicates listen address/port/protocol overlap.
+	ErrPortConflict = errors.New("port conflict")
 )
 
 type entry struct {
@@ -64,23 +72,37 @@ func NewManager(store storage.Store, cfg config.ForwardConfig) (*Manager, error)
 	return m, nil
 }
 
+// ValidateCreateRequest normalizes and validates a create request without persisting it.
+func (m *Manager) ValidateCreateRequest(req *models.CreateRuleRequest) error {
+	if err := models.ValidateCreateRuleRequest(req); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidRule, err)
+	}
+	if err := m.checkPortConflict(req.ListenAddr, req.ListenPort, req.Protocol, ""); err != nil {
+		return err
+	}
+	return nil
+}
+
 // AddRule validates, persists and starts a new rule.
 func (m *Manager) AddRule(req *models.CreateRuleRequest) (*models.ForwardRule, error) {
-	// Port conflict detection
-	if err := m.checkPortConflict(req.ListenAddr, req.ListenPort, req.Protocol, ""); err != nil {
+	if req == nil {
+		return nil, fmt.Errorf("%w: 请求不能为空 | request is required", ErrInvalidRule)
+	}
+	normalized := *req
+	if err := m.ValidateCreateRequest(&normalized); err != nil {
 		return nil, err
 	}
 	r := &models.ForwardRule{
 		ID:          uuid.NewString(),
-		Name:        req.Name,
-		ListenAddr:  req.ListenAddr,
-		ListenPort:  req.ListenPort,
-		Protocol:    req.Protocol,
-		TargetAddr:  req.TargetAddr,
-		TargetPort:  req.TargetPort,
-		AddFirewall: req.AddFirewall,
-		Comment:     req.Comment,
-		Enabled:     req.Enabled,
+		Name:        normalized.Name,
+		ListenAddr:  normalized.ListenAddr,
+		ListenPort:  normalized.ListenPort,
+		Protocol:    normalized.Protocol,
+		TargetAddr:  normalized.TargetAddr,
+		TargetPort:  normalized.TargetPort,
+		AddFirewall: normalized.AddFirewall,
+		Comment:     normalized.Comment,
+		Enabled:     normalized.Enabled,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -96,78 +118,74 @@ func (m *Manager) AddRule(req *models.CreateRuleRequest) (*models.ForwardRule, e
 			m.mu.Unlock()
 		} else {
 			r.Status = models.StatusActive
-		}
-	} else {
-		r.Status = models.StatusInactive
-	}
-	return r, nil
-}
-
-// UpdateRule applies partial updates to an existing rule (restarts forwarders as needed).
-func (m *Manager) UpdateRule(id string, req *models.UpdateRuleRequest) (*models.ForwardRule, error) {
-	r, err := m.store.GetRule(id)
-	if err != nil {
-		return nil, err
-	}
-	m.stopForwarders(id)
-
-	if req.Name != nil {
-		r.Name = *req.Name
-	}
-	if req.ListenAddr != nil {
-		r.ListenAddr = *req.ListenAddr
-	}
-	if req.ListenPort != nil {
-		r.ListenPort = *req.ListenPort
-	}
-	if req.Protocol != nil {
-		r.Protocol = *req.Protocol
-	}
-	if req.TargetAddr != nil {
-		r.TargetAddr = *req.TargetAddr
-	}
-	if req.TargetPort != nil {
-		r.TargetPort = *req.TargetPort
-	}
-	if req.AddFirewall != nil {
-		r.AddFirewall = *req.AddFirewall
-	}
-	if req.Comment != nil {
-		r.Comment = *req.Comment
-	}
-	if req.Enabled != nil {
-		r.Enabled = *req.Enabled
-	}
-	r.UpdatedAt = time.Now()
-
-	// Port conflict detection (exclude self)
-	if err := m.checkPortConflict(r.ListenAddr, r.ListenPort, r.Protocol, id); err != nil {
-		return nil, err
-	}
-
-	if err := m.store.SaveRule(r); err != nil {
-		return nil, err
-	}
-	if r.Enabled {
-		if err := m.startForwarders(r); err != nil {
-			r.Status = models.StatusError
-			r.ErrorMsg = err.Error()
-			m.mu.Lock()
-			m.errors[r.ID] = err.Error()
-			m.mu.Unlock()
-		} else {
-			r.Status = models.StatusActive
+			r.ErrorMsg = ""
 			m.mu.Lock()
 			delete(m.errors, r.ID)
 			m.mu.Unlock()
 		}
 	} else {
 		r.Status = models.StatusInactive
+		r.ErrorMsg = ""
 		m.mu.Lock()
 		delete(m.errors, r.ID)
 		m.mu.Unlock()
 	}
 	return r, nil
+}
+
+// UpdateRule applies partial updates to an existing rule (restarts forwarders as needed).
+func (m *Manager) UpdateRule(id string, req *models.UpdateRuleRequest) (*models.ForwardRule, error) {
+	if req == nil {
+		return nil, fmt.Errorf("%w: 请求不能为空 | request is required", ErrInvalidRule)
+	}
+	current, err := m.store.GetRule(id)
+	if err != nil {
+		return nil, err
+	}
+	next := cloneRule(current)
+	applyUpdate(next, req)
+	next.UpdatedAt = time.Now()
+
+	if err := models.ValidateForwardRule(next); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidRule, err)
+	}
+
+	// Port conflict detection (exclude self)
+	if err := m.checkPortConflict(next.ListenAddr, next.ListenPort, next.Protocol, id); err != nil {
+		return nil, err
+	}
+
+	if err := m.store.SaveRule(next); err != nil {
+		return nil, err
+	}
+
+	if !requiresForwarderRestart(current, next) {
+		return m.GetRule(id)
+	}
+
+	m.stopForwarders(id)
+	if next.Enabled {
+		if err := m.startForwarders(next); err != nil {
+			next.Status = models.StatusError
+			next.ErrorMsg = err.Error()
+			m.mu.Lock()
+			m.errors[next.ID] = err.Error()
+			m.mu.Unlock()
+		} else {
+			next.Status = models.StatusActive
+			next.ErrorMsg = ""
+			m.mu.Lock()
+			delete(m.errors, next.ID)
+			m.mu.Unlock()
+		}
+	} else {
+		next.Status = models.StatusInactive
+		next.ErrorMsg = ""
+		m.mu.Lock()
+		delete(m.errors, next.ID)
+		m.mu.Unlock()
+	}
+	return next, nil
 }
 
 // DeleteRule stops and removes a rule permanently.
@@ -264,23 +282,19 @@ func (m *Manager) checkPortConflict(listenAddr string, listenPort int, proto mod
 	if err != nil {
 		return err
 	}
-	addrA := listenAddr
-	if addrA == "" {
-		addrA = "0.0.0.0"
-	}
+	addrA := models.NormalizeListenAddr(listenAddr)
+	proto = models.NormalizeProtocol(proto)
 	for _, r := range rules {
 		if r.ID == excludeID {
 			continue
 		}
-		addrB := r.ListenAddr
-		if addrB == "" {
-			addrB = "0.0.0.0"
-		}
+		addrB := models.NormalizeListenAddr(r.ListenAddr)
 		if addrA != addrB || r.ListenPort != listenPort {
 			continue
 		}
 		if protocolsOverlap(proto, r.Protocol) {
-			return fmt.Errorf("端口冲突 | Port conflict: %s:%d 已被规则 | already used by rule %q 占用 (协议 | protocol %s)",
+			return fmt.Errorf("%w: %s:%d 已被规则 | already used by rule %q 占用 (协议 | protocol %s)",
+				ErrPortConflict,
 				addrA, listenPort, r.Name, r.Protocol)
 		}
 	}
@@ -289,6 +303,8 @@ func (m *Manager) checkPortConflict(listenAddr string, listenPort int, proto mod
 
 // protocolsOverlap returns true if protocol a and b share any common transport.
 func protocolsOverlap(a, b models.Protocol) bool {
+	a = models.NormalizeProtocol(a)
+	b = models.NormalizeProtocol(b)
 	if a == models.ProtocolBoth || b == models.ProtocolBoth {
 		return true
 	}
@@ -356,4 +372,54 @@ func mergeStats(e *entry) (bytesIn, bytesOut, active, total int64) {
 		total += t
 	}
 	return
+}
+
+func cloneRule(r *models.ForwardRule) *models.ForwardRule {
+	if r == nil {
+		return nil
+	}
+	clone := *r
+	return &clone
+}
+
+func applyUpdate(r *models.ForwardRule, req *models.UpdateRuleRequest) {
+	if req.Name != nil {
+		r.Name = *req.Name
+	}
+	if req.ListenAddr != nil {
+		r.ListenAddr = *req.ListenAddr
+	}
+	if req.ListenPort != nil {
+		r.ListenPort = *req.ListenPort
+	}
+	if req.Protocol != nil {
+		r.Protocol = *req.Protocol
+	}
+	if req.TargetAddr != nil {
+		r.TargetAddr = *req.TargetAddr
+	}
+	if req.TargetPort != nil {
+		r.TargetPort = *req.TargetPort
+	}
+	if req.AddFirewall != nil {
+		r.AddFirewall = *req.AddFirewall
+	}
+	if req.Comment != nil {
+		r.Comment = *req.Comment
+	}
+	if req.Enabled != nil {
+		r.Enabled = *req.Enabled
+	}
+}
+
+func requiresForwarderRestart(before, after *models.ForwardRule) bool {
+	if before == nil || after == nil {
+		return true
+	}
+	return before.Enabled != after.Enabled ||
+		models.NormalizeListenAddr(before.ListenAddr) != models.NormalizeListenAddr(after.ListenAddr) ||
+		before.ListenPort != after.ListenPort ||
+		models.NormalizeProtocol(before.Protocol) != models.NormalizeProtocol(after.Protocol) ||
+		before.TargetAddr != after.TargetAddr ||
+		before.TargetPort != after.TargetPort
 }

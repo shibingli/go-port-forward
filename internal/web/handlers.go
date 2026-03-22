@@ -1,13 +1,20 @@
 package web
 
 import (
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 
 	"go-port-forward/internal/firewall"
 	"go-port-forward/internal/forward"
 	"go-port-forward/internal/models"
+	"go-port-forward/internal/storage"
+	"go-port-forward/pkg/os/wsl"
 	"go-port-forward/pkg/serializer/json"
 )
+
+const maxJSONBodyBytes int64 = 1 << 20
 
 type handler struct {
 	mgr *forward.Manager
@@ -17,7 +24,7 @@ type handler struct {
 // --- helpers ---
 
 func writeJSON(w http.ResponseWriter, code int, v interface{}) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
 }
@@ -30,8 +37,49 @@ func fail(w http.ResponseWriter, code int, msg string) {
 	writeJSON(w, code, models.APIResponse{Success: false, Message: msg})
 }
 
-func decodeBody[T any](r *http.Request, dst *T) bool {
-	return json.NewDecoder(r.Body).Decode(dst) == nil
+func decodeBody[T any](w http.ResponseWriter, r *http.Request, dst *T) error {
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
+	defer r.Body.Close()
+
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dst); err != nil {
+		return decodeBodyError(err)
+	}
+
+	var extra struct{}
+	if err := dec.Decode(&extra); err != io.EOF {
+		return fmt.Errorf("请求体只能包含单个 JSON 对象 | request body must contain a single JSON object")
+	}
+	return nil
+}
+
+func decodeBodyError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, io.EOF):
+		return fmt.Errorf("请求体不能为空 | request body is required")
+	default:
+		return fmt.Errorf("无效的请求体 | invalid JSON body: %v", err)
+	}
+}
+
+func writeAPIError(w http.ResponseWriter, err error) {
+	switch {
+	case err == nil:
+		return
+	case errors.Is(err, storage.ErrRuleNotFound):
+		fail(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, forward.ErrInvalidRule):
+		fail(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, forward.ErrPortConflict):
+		fail(w, http.StatusConflict, err.Error())
+	case errors.Is(err, wsl.ErrNotSupported):
+		fail(w, http.StatusNotImplemented, err.Error())
+	default:
+		fail(w, http.StatusInternalServerError, err.Error())
+	}
 }
 
 // --- Rules CRUD ---
@@ -47,40 +95,18 @@ func (h *handler) listRules(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) createRule(w http.ResponseWriter, r *http.Request) {
 	var req models.CreateRuleRequest
-	if !decodeBody(r, &req) {
-		fail(w, http.StatusBadRequest, "无效的请求体 | Invalid JSON body")
+	if err := decodeBody(w, r, &req); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if req.Name == "" {
-		fail(w, http.StatusBadRequest, "规则名称不能为空 | Name is required")
+	if err := models.ValidateCreateRuleRequest(&req); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
 		return
-	}
-	if req.TargetAddr == "" {
-		fail(w, http.StatusBadRequest, "目标地址不能为空 | target_addr is required")
-		return
-	}
-	if req.ListenPort <= 0 || req.ListenPort > 65535 {
-		fail(w, http.StatusBadRequest, "监听端口超出范围 (1-65535) | listen_port out of range (1-65535)")
-		return
-	}
-	if req.TargetPort <= 0 || req.TargetPort > 65535 {
-		fail(w, http.StatusBadRequest, "目标端口超出范围 (1-65535) | target_port out of range (1-65535)")
-		return
-	}
-	if req.Protocol == "" {
-		req.Protocol = models.ProtocolTCP
-	}
-	if req.Protocol != models.ProtocolTCP && req.Protocol != models.ProtocolUDP && req.Protocol != models.ProtocolBoth {
-		fail(w, http.StatusBadRequest, "协议必须为 tcp、udp 或 both | Protocol must be tcp, udp, or both")
-		return
-	}
-	if req.ListenAddr == "" {
-		req.ListenAddr = "0.0.0.0"
 	}
 
 	rule, err := h.mgr.AddRule(&req)
 	if err != nil {
-		fail(w, http.StatusInternalServerError, err.Error())
+		writeAPIError(w, err)
 		return
 	}
 
@@ -108,13 +134,13 @@ func (h *handler) getRule(w http.ResponseWriter, r *http.Request) {
 func (h *handler) updateRule(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var req models.UpdateRuleRequest
-	if !decodeBody(r, &req) {
-		fail(w, http.StatusBadRequest, "无效的请求体 | Invalid JSON body")
+	if err := decodeBody(w, r, &req); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	rule, err := h.mgr.UpdateRule(id, &req)
 	if err != nil {
-		fail(w, http.StatusInternalServerError, err.Error())
+		writeAPIError(w, err)
 		return
 	}
 	ok(w, rule)
@@ -123,9 +149,13 @@ func (h *handler) updateRule(w http.ResponseWriter, r *http.Request) {
 func (h *handler) deleteRule(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	// Fetch before delete so we can remove the firewall rule.
-	existing, _ := h.mgr.GetRule(id)
+	existing, err := h.mgr.GetRule(id)
+	if err != nil {
+		writeAPIError(w, err)
+		return
+	}
 	if err := h.mgr.DeleteRule(id); err != nil {
-		fail(w, http.StatusInternalServerError, err.Error())
+		writeAPIError(w, err)
 		return
 	}
 	if existing != nil && existing.AddFirewall && h.fw != nil {
@@ -141,15 +171,19 @@ func (h *handler) deleteRule(w http.ResponseWriter, r *http.Request) {
 func (h *handler) toggleRule(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var body struct {
-		Enabled bool `json:"enabled"`
+		Enabled *bool `json:"enabled"`
 	}
-	if !decodeBody(r, &body) {
-		fail(w, http.StatusBadRequest, "无效的请求体 | Invalid JSON body")
+	if err := decodeBody(w, r, &body); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	rule, err := h.mgr.ToggleRule(id, body.Enabled)
+	if body.Enabled == nil {
+		fail(w, http.StatusBadRequest, "enabled 字段不能为空 | enabled field is required")
+		return
+	}
+	rule, err := h.mgr.ToggleRule(id, *body.Enabled)
 	if err != nil {
-		fail(w, http.StatusInternalServerError, err.Error())
+		writeAPIError(w, err)
 		return
 	}
 	ok(w, rule)

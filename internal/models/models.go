@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"go-port-forward/pkg/os/wsl"
@@ -109,4 +110,96 @@ type APIResponse struct {
 	Data    interface{} `json:"data,omitempty"`
 	Message string      `json:"message,omitempty"`
 	Success bool        `json:"success"`
+}
+
+// NormalizeProtocol normalizes a protocol value for API and storage use.
+func NormalizeProtocol(p Protocol) Protocol {
+	return Protocol(strings.ToLower(strings.TrimSpace(string(p))))
+}
+
+// NormalizeListenAddr normalizes a listen address; empty means all interfaces.
+func NormalizeListenAddr(addr string) string {
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return "0.0.0.0"
+	}
+	return addr
+}
+
+// ValidateCreateRuleRequest normalizes and validates a create request in-place.
+func ValidateCreateRuleRequest(req *CreateRuleRequest) error {
+	if req == nil {
+		return fmt.Errorf("请求不能为空 | request is required")
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	req.TargetAddr = strings.TrimSpace(req.TargetAddr)
+	req.ListenAddr = NormalizeListenAddr(req.ListenAddr)
+	req.Comment = strings.TrimSpace(req.Comment)
+	req.Protocol = NormalizeProtocol(req.Protocol)
+	if req.Protocol == "" {
+		req.Protocol = ProtocolTCP
+	}
+
+	if req.Name == "" {
+		return fmt.Errorf("规则名称不能为空 | name is required")
+	}
+	if req.TargetAddr == "" {
+		return fmt.Errorf("目标地址不能为空 | target_addr is required")
+	}
+	if err := validatePort("监听端口 | listen_port", req.ListenPort); err != nil {
+		return err
+	}
+	if err := validatePort("目标端口 | target_port", req.TargetPort); err != nil {
+		return err
+	}
+	if !IsValidProtocol(req.Protocol) {
+		return fmt.Errorf("协议必须为 tcp、udp 或 both | protocol must be tcp, udp, or both")
+	}
+	return nil
+}
+
+// ValidateForwardRule normalizes and validates a persisted rule in-place.
+func ValidateForwardRule(rule *ForwardRule) error {
+	if rule == nil {
+		return fmt.Errorf("规则不能为空 | rule is required")
+	}
+	rule.Name = strings.TrimSpace(rule.Name)
+	rule.TargetAddr = strings.TrimSpace(rule.TargetAddr)
+	rule.ListenAddr = NormalizeListenAddr(rule.ListenAddr)
+	rule.Comment = strings.TrimSpace(rule.Comment)
+	rule.Protocol = NormalizeProtocol(rule.Protocol)
+
+	if rule.Name == "" {
+		return fmt.Errorf("规则名称不能为空 | name is required")
+	}
+	if rule.TargetAddr == "" {
+		return fmt.Errorf("目标地址不能为空 | target_addr is required")
+	}
+	if err := validatePort("监听端口 | listen_port", rule.ListenPort); err != nil {
+		return err
+	}
+	if err := validatePort("目标端口 | target_port", rule.TargetPort); err != nil {
+		return err
+	}
+	if !IsValidProtocol(rule.Protocol) {
+		return fmt.Errorf("协议必须为 tcp、udp 或 both | protocol must be tcp, udp, or both")
+	}
+	return nil
+}
+
+// IsValidProtocol reports whether p is a supported transport selection.
+func IsValidProtocol(p Protocol) bool {
+	switch NormalizeProtocol(p) {
+	case ProtocolTCP, ProtocolUDP, ProtocolBoth:
+		return true
+	default:
+		return false
+	}
+}
+
+func validatePort(name string, port int) error {
+	if port <= 0 || port > 65535 {
+		return fmt.Errorf("%s 超出范围 (1-65535) | out of range (1-65535)", name)
+	}
+	return nil
 }

@@ -548,6 +548,10 @@ function portForwardApp() {
         const res = await fetch('/api/wsl/ports/'+encodeURIComponent(this.wslDistro))
         const d = await res.json()
         this.wslPorts = d.success ? (d.data || []) : []
+	        if (!d.success) showToast('warning', d.message || _t('查询 WSL 端口失败', 'Failed to load WSL ports'))
+	      } catch {
+	        this.wslPorts = []
+	        showToast('danger', _t('查询 WSL 端口失败', 'Failed to load WSL ports'))
       } finally {
         this.wslLoading = false
       }

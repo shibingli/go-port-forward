@@ -142,6 +142,9 @@ func writeDefaults(v *viper.Viper, configPath string) error {
 	if configPath == "" {
 		configPath = filepath.Join(dir, "config.yaml")
 	}
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		return err
+	}
 	return v.WriteConfigAs(configPath)
 }
 
