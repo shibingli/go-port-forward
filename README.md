@@ -5,8 +5,25 @@
 A high-performance cross-platform TCP/UDP port forwarder with a built-in Web UI.
 
 ## 源码地址 | Source Code
-主站：   https://github.com/shibingli/go-port-forward
-镜像站： https://gitee.com/shibingli/go-port-forward
+
+| 平台           | 地址                                           |
+|--------------|----------------------------------------------|
+| 🌐 Github 主站 | https://github.com/shibingli/go-port-forward |
+| 🪞 Gitee 镜像站 | https://gitee.com/shibingli/go-port-forward  |
+
+## 📸 截图 | Screenshots
+
+### 首页 | Dashboard
+![首页](docs/images/首页.png)
+
+### 转发列表 | Rule List
+![转发列表](docs/images/转发列表.png)
+
+### 添加转发 | Add Rule
+![添加转发](docs/images/添加转发.png)
+
+### WSL2 端口导入 | WSL2 Import
+![WSL2导入](docs/images/WSL2导入.png)
 
 ## ✨ 功能特性 | Features
 
