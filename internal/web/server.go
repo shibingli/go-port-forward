@@ -10,11 +10,33 @@ import (
 	"go-port-forward/internal/forward"
 	"go-port-forward/internal/logger"
 	"io/fs"
+	"mime"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 )
+
+func init() {
+	// Ensure correct MIME types regardless of OS registry (fixes Windows issue
+	// where .css/.js may be served as text/plain, breaking strict MIME checking).
+	for ext, typ := range map[string]string{
+		".css":   "text/css; charset=utf-8",
+		".js":    "application/javascript; charset=utf-8",
+		".json":  "application/json; charset=utf-8",
+		".html":  "text/html; charset=utf-8",
+		".htm":   "text/html; charset=utf-8",
+		".svg":   "image/svg+xml",
+		".png":   "image/png",
+		".ico":   "image/x-icon",
+		".woff":  "font/woff",
+		".woff2": "font/woff2",
+		".ttf":   "font/ttf",
+		".map":   "application/json",
+	} {
+		_ = mime.AddExtensionType(ext, typ)
+	}
+}
 
 //go:embed static
 var staticFiles embed.FS
