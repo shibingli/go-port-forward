@@ -219,18 +219,18 @@ gc:
 
 ## 🔌 REST API
 
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| `GET` | `/api/rules` | 列出所有转发规则 |
-| `POST` | `/api/rules` | 创建转发规则 |
-| `GET` | `/api/rules/{id}` | 获取单条规则 |
-| `PUT` | `/api/rules/{id}` | 更新规则 |
-| `DELETE` | `/api/rules/{id}` | 删除规则 |
-| `PUT` | `/api/rules/{id}/toggle` | 启用/禁用规则 |
-| `GET` | `/api/stats` | 获取全局统计 |
-| `GET` | `/api/wsl/distros` | 列出 WSL2 发行版 |
-| `GET` | `/api/wsl/ports/{distro}` | 列出发行版监听端口 |
-| `POST` | `/api/wsl/import` | 批量导入 WSL2 端口 |
+| 方法       | 路径                        | 描述           |
+|----------|---------------------------|--------------|
+| `GET`    | `/api/rules`              | 列出所有转发规则     |
+| `POST`   | `/api/rules`              | 创建转发规则       |
+| `GET`    | `/api/rules/{id}`         | 获取单条规则       |
+| `PUT`    | `/api/rules/{id}`         | 更新规则         |
+| `DELETE` | `/api/rules/{id}`         | 删除规则         |
+| `PUT`    | `/api/rules/{id}/toggle`  | 启用/禁用规则      |
+| `GET`    | `/api/stats`              | 获取全局统计       |
+| `GET`    | `/api/wsl/distros`        | 列出 WSL2 发行版  |
+| `GET`    | `/api/wsl/ports/{distro}` | 列出发行版监听端口    |
+| `POST`   | `/api/wsl/import`         | 批量导入 WSL2 端口 |
 
 ## 📋 系统要求 | Requirements
 
