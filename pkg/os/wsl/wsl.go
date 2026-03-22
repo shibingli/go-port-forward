@@ -30,6 +30,17 @@ type Port struct {
 	Port      int    `json:"port"`
 }
 
+// Capability describes whether WSL-based features can be used by the UI/API.
+type Capability struct {
+	Supported  bool     `json:"supported"`
+	Installed  bool     `json:"installed"`
+	Enabled    bool     `json:"enabled"`
+	HasDistros bool     `json:"has_distros"`
+	ShowImport bool     `json:"show_import"`
+	Reason     string   `json:"reason,omitempty"`
+	Distros    []Distro `json:"distros,omitempty"`
+}
+
 // ErrNotSupported indicates that WSL integration is unavailable on the current OS.
 var ErrNotSupported = errors.New("WSL is not supported on this operating system")
 
@@ -132,6 +143,40 @@ func IsWSL2Available() bool {
 	return strings.Contains(decoded, "WSL 2") ||
 		strings.Contains(decoded, "WSL2") ||
 		strings.Contains(decoded, ": 2")
+}
+
+// DetectCapability inspects whether WSL import features should be exposed.
+func DetectCapability() Capability {
+	cap := Capability{Supported: runtime.GOOS == "windows"}
+	if !cap.Supported {
+		cap.Reason = ErrNotSupported.Error()
+		return cap
+	}
+
+	if _, err := exec.LookPath("wsl.exe"); err != nil {
+		cap.Reason = "WSL 未安装 | WSL is not installed"
+		return cap
+	}
+	cap.Installed = true
+
+	if !IsWSL2Available() {
+		cap.Reason = "WSL 已安装但未启用 | WSL is installed but not enabled"
+		return cap
+	}
+	cap.Enabled = true
+
+	distros, err := ListDistros()
+	if err != nil {
+		cap.Reason = err.Error()
+		return cap
+	}
+	cap.Distros = distros
+	cap.HasDistros = len(distros) > 0
+	cap.ShowImport = cap.HasDistros
+	if !cap.HasDistros {
+		cap.Reason = "未发现 Linux 发行版 | no Linux distribution found"
+	}
+	return cap
 }
 
 // GetDefaultDistribution 获取默认的 WSL2 发行版 | Get default WSL2 distribution

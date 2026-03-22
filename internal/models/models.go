@@ -72,6 +72,9 @@ type WSLDistro = wsl.Distro
 // WSLPort is a type alias for wsl.Port (WSL2 listening port)
 type WSLPort = wsl.Port
 
+// WSLCapability is a type alias for wsl.Capability (WSL feature detection result).
+type WSLCapability = wsl.Capability
+
 // CreateRuleRequest is the API request for creating a new rule
 type CreateRuleRequest struct {
 	Name        string   `json:"name"`

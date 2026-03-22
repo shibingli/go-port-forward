@@ -225,6 +225,15 @@ func (m *Manager) ListRules() ([]*models.ForwardRule, error) {
 	return rules, nil
 }
 
+// Snapshot returns current rules together with aggregated stats derived from the same snapshot.
+func (m *Manager) Snapshot() ([]*models.ForwardRule, *models.Stats, error) {
+	rules, err := m.ListRules()
+	if err != nil {
+		return nil, nil, err
+	}
+	return rules, buildStats(rules), nil
+}
+
 // GetRule returns one rule with live stats.
 func (m *Manager) GetRule(id string) (*models.ForwardRule, error) {
 	r, err := m.store.GetRule(id)
@@ -247,7 +256,14 @@ func (m *Manager) GetRule(id string) (*models.ForwardRule, error) {
 
 // GlobalStats aggregates stats across all rules.
 func (m *Manager) GlobalStats() *models.Stats {
-	rules, _ := m.ListRules()
+	_, stats, err := m.Snapshot()
+	if err != nil {
+		return &models.Stats{}
+	}
+	return stats
+}
+
+func buildStats(rules []*models.ForwardRule) *models.Stats {
 	s := &models.Stats{TotalRules: len(rules)}
 	for _, r := range rules {
 		if r.Enabled {

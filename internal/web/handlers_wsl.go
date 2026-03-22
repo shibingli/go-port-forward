@@ -9,8 +9,19 @@ import (
 	"go-port-forward/pkg/os/wsl"
 )
 
+var (
+	wslDetectCapability = wsl.DetectCapability
+	wslListDistrosFn    = wsl.ListDistros
+	wslListPortsFn      = wsl.ListPorts
+	wslGetIPFn          = wsl.GetIP
+)
+
+func (h *handler) wslCapability(w http.ResponseWriter, _ *http.Request) {
+	ok(w, wslDetectCapability())
+}
+
 func (h *handler) wslListDistros(w http.ResponseWriter, r *http.Request) {
-	distros, err := wsl.ListDistros()
+	distros, err := wslListDistrosFn()
 	if err != nil {
 		writeAPIError(w, err)
 		return
@@ -24,7 +35,7 @@ func (h *handler) wslListPorts(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "发行版名称不能为空 | distro is required")
 		return
 	}
-	ports, err := wsl.ListPorts(distro)
+	ports, err := wslListPortsFn(distro)
 	if err != nil {
 		writeAPIError(w, err)
 		return
@@ -50,7 +61,7 @@ func (h *handler) wslImport(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.TargetAddr == "" {
 		// 自动检测 WSL2 IP | Auto-detect WSL2 IP.
-		ip, err := wsl.GetIP(req.Distro)
+		ip, err := wslGetIPFn(req.Distro)
 		if err != nil {
 			writeAPIError(w, fmt.Errorf("无法检测 WSL2 IP | cannot detect WSL2 IP: %w", err))
 			return

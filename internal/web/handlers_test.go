@@ -2,6 +2,7 @@ package web
 
 import (
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strconv"
@@ -9,10 +10,12 @@ import (
 	"testing"
 
 	"go-port-forward/internal/config"
+	"go-port-forward/internal/firewall"
 	"go-port-forward/internal/forward"
 	"go-port-forward/internal/logger"
 	"go-port-forward/internal/models"
 	"go-port-forward/internal/storage"
+	"go-port-forward/pkg/os/wsl"
 	"go.uber.org/zap"
 )
 
@@ -100,7 +103,152 @@ func TestServerStartReturnsErrorWhenPortIsOccupied(t *testing.T) {
 	}
 }
 
+func TestToggleRuleSyncsFirewallOnEnableAndDisable(t *testing.T) {
+	fw := &fakeFirewall{}
+	h, cleanup := newTestHandlerWithFirewall(t, fw)
+	defer cleanup()
+
+	rule, err := h.mgr.AddRule(&models.CreateRuleRequest{
+		Name:        "toggle-fw",
+		ListenAddr:  "127.0.0.1",
+		ListenPort:  freePort(t),
+		Protocol:    models.ProtocolTCP,
+		TargetAddr:  "127.0.0.1",
+		TargetPort:  freePort(t),
+		Enabled:     false,
+		AddFirewall: true,
+	})
+	if err != nil {
+		t.Fatalf("seed rule: %v", err)
+	}
+
+	enableReq := httptest.NewRequest(http.MethodPut, "/api/rules/"+rule.ID+"/toggle", strings.NewReader(`{"enabled":true}`))
+	enableReq.SetPathValue("id", rule.ID)
+	enableRec := httptest.NewRecorder()
+	h.toggleRule(enableRec, enableReq)
+	if enableRec.Code != http.StatusOK {
+		t.Fatalf("enable status = %d, want 200, body=%s", enableRec.Code, enableRec.Body.String())
+	}
+	if len(fw.added) != 1 {
+		t.Fatalf("firewall add calls = %d, want 1", len(fw.added))
+	}
+
+	disableReq := httptest.NewRequest(http.MethodPut, "/api/rules/"+rule.ID+"/toggle", strings.NewReader(`{"enabled":false}`))
+	disableReq.SetPathValue("id", rule.ID)
+	disableRec := httptest.NewRecorder()
+	h.toggleRule(disableRec, disableReq)
+	if disableRec.Code != http.StatusOK {
+		t.Fatalf("disable status = %d, want 200, body=%s", disableRec.Code, disableRec.Body.String())
+	}
+	if len(fw.deleted) != 1 {
+		t.Fatalf("firewall delete calls = %d, want 1", len(fw.deleted))
+	}
+}
+
+func TestUpdateRuleSyncsFirewallWhenEndpointChanges(t *testing.T) {
+	fw := &fakeFirewall{}
+	h, cleanup := newTestHandlerWithFirewall(t, fw)
+	defer cleanup()
+
+	rule, err := h.mgr.AddRule(&models.CreateRuleRequest{
+		Name:        "fw-update",
+		ListenAddr:  "127.0.0.1",
+		ListenPort:  freePort(t),
+		Protocol:    models.ProtocolTCP,
+		TargetAddr:  "127.0.0.1",
+		TargetPort:  freePort(t),
+		Enabled:     true,
+		AddFirewall: true,
+	})
+	if err != nil {
+		t.Fatalf("seed rule: %v", err)
+	}
+
+	newPort := freePort(t)
+	req := httptest.NewRequest(http.MethodPut, "/api/rules/"+rule.ID, strings.NewReader(`{"listen_port":`+strconv.Itoa(newPort)+`}`))
+	req.SetPathValue("id", rule.ID)
+	rec := httptest.NewRecorder()
+
+	h.updateRule(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	if len(fw.deleted) != 1 || fw.deleted[0].Port != rule.ListenPort {
+		t.Fatalf("unexpected firewall delete calls: %#v", fw.deleted)
+	}
+	if len(fw.added) != 1 || fw.added[0].Port != newPort {
+		t.Fatalf("unexpected firewall add calls: %#v", fw.added)
+	}
+}
+
+func TestWSLCapabilityEndpointReturnsCapabilityPayload(t *testing.T) {
+	h, cleanup := newTestHandler(t)
+	defer cleanup()
+
+	oldDetect := wslDetectCapability
+	wslDetectCapability = func() wsl.Capability {
+		return wsl.Capability{
+			Supported:  true,
+			Installed:  true,
+			Enabled:    true,
+			HasDistros: true,
+			ShowImport: true,
+			Distros:    []wsl.Distro{{Name: "Ubuntu-24.04", State: "Running", Version: "2", Default: true}},
+		}
+	}
+	defer func() { wslDetectCapability = oldDetect }()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/wsl/capability", nil)
+	rec := httptest.NewRecorder()
+
+	h.wslCapability(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `"show_import":true`) || !strings.Contains(body, `Ubuntu-24.04`) {
+		t.Fatalf("unexpected capability payload: %s", body)
+	}
+}
+
+func TestDashboardReturnsRulesAndStatsInSinglePayload(t *testing.T) {
+	h, cleanup := newTestHandler(t)
+	defer cleanup()
+
+	_, err := h.mgr.AddRule(&models.CreateRuleRequest{
+		Name:       "dashboard-rule",
+		ListenAddr: "127.0.0.1",
+		ListenPort: freePort(t),
+		Protocol:   models.ProtocolTCP,
+		TargetAddr: "127.0.0.1",
+		TargetPort: freePort(t),
+		Enabled:    false,
+	})
+	if err != nil {
+		t.Fatalf("seed rule: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/dashboard", nil)
+	rec := httptest.NewRecorder()
+
+	h.dashboard(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `"rules"`) || !strings.Contains(body, `"stats"`) || !strings.Contains(body, `dashboard-rule`) {
+		t.Fatalf("unexpected dashboard payload: %s", body)
+	}
+}
+
 func newTestHandler(t *testing.T) (*handler, func()) {
+	return newTestHandlerWithFirewall(t, nil)
+}
+
+func newTestHandlerWithFirewall(t *testing.T, fw firewall.Manager) (*handler, func()) {
 	t.Helper()
 	logger.L = zap.NewNop()
 	logger.S = logger.L.Sugar()
@@ -114,7 +262,7 @@ func newTestHandler(t *testing.T) (*handler, func()) {
 		_ = store.Close()
 		t.Fatalf("new manager: %v", err)
 	}
-	return &handler{mgr: mgr}, func() {
+	return &handler{mgr: mgr, fw: fw}, func() {
 		mgr.Shutdown()
 		_ = store.Close()
 	}
@@ -128,4 +276,23 @@ func freePort(t *testing.T) int {
 	}
 	defer ln.Close()
 	return ln.Addr().(*net.TCPAddr).Port
+}
+
+type fakeFirewall struct {
+	added   []firewall.Rule
+	deleted []firewall.Rule
+}
+
+func (f *fakeFirewall) AddRule(r firewall.Rule) error {
+	f.added = append(f.added, r)
+	return nil
+}
+
+func (f *fakeFirewall) DeleteRule(r firewall.Rule) error {
+	f.deleted = append(f.deleted, r)
+	return nil
+}
+
+func (f *fakeFirewall) RuleExists(firewall.Rule) (bool, error) {
+	return false, nil
 }

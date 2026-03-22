@@ -49,7 +49,7 @@
         <i class="bi bi-plus-circle sidebar__link-icon"></i>
         <span class="sidebar__link-text">添加规则</span>
       </a>
-      <a href="#" class="sidebar__link" @click.prevent="showWSLModal()">
+      <a href="#" class="sidebar__link" style="display:none" x-show="canShowWSLImport" @click.prevent="showWSLModal()">
         <i class="bi bi-terminal sidebar__link-icon"></i>
         <span class="sidebar__link-text">WSL2 导入</span>
       </a>
@@ -82,7 +82,7 @@
         <button class="btn btn-sm btn-primary btn-icon ms-2" @click="showAddModal()">
           <i class="bi bi-plus-lg"></i><span>添加规则</span>
         </button>
-        <button class="btn btn-sm btn-outline-secondary btn-icon" @click="showWSLModal()">
+        <button class="btn btn-sm btn-outline-secondary btn-icon" style="display:none" x-show="canShowWSLImport" @click="showWSLModal()">
           <i class="bi bi-terminal"></i><span class="d-none d-md-inline">WSL2</span>
         </button>
         <button class="btn btn-sm btn-outline-secondary" @click="refresh()" title="刷新">
@@ -138,7 +138,7 @@
               <button class="btn btn-sm btn-primary btn-icon" @click="showAddModal()">
                 <i class="bi bi-plus-lg"></i><span>添加</span>
               </button>
-              <button class="btn btn-sm btn-outline-secondary btn-icon" @click="showWSLModal()">
+              <button class="btn btn-sm btn-outline-secondary btn-icon" style="display:none" x-show="canShowWSLImport" @click="showWSLModal()">
                 <i class="bi bi-terminal"></i><span class="d-none d-sm-inline">WSL2</span>
               </button>
             </div>
@@ -295,7 +295,7 @@
 <!-- ============================================================
      WSL2 Import Modal
      ============================================================ -->
-<div class="modal fade" id="wslModal" tabindex="-1" aria-labelledby="wslModalLabel">
+<div class="modal fade" id="wslModal" tabindex="-1" aria-labelledby="wslModalLabel" style="display:none" x-show="canShowWSLImport">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
@@ -415,12 +415,15 @@ function portForwardApp() {
     _ruleModal: null,
 
     wslDistros: [],
+	    wslCapability: { supported:false, installed:false, enabled:false, has_distros:false, show_import:false, distros:[] },
     wslPorts: [],
     wslDistro: '',
     wslSelected: [],
     wslLoading: false,
     wslImporting: false,
     _wslModal: null,
+	    _refreshTimer: null,
+	    _refreshInFlight: false,
 
     get filteredRules() {
       const q = this.search.trim().toLowerCase()
@@ -433,21 +436,55 @@ function portForwardApp() {
       )
     },
 
+	    get canShowWSLImport() {
+	      return !!this.wslCapability.show_import
+	    },
+
     async init() {
       this._ruleModal = new bootstrap.Modal(document.getElementById('ruleModal'))
       this._wslModal  = new bootstrap.Modal(document.getElementById('wslModal'))
-      await this.refresh()
-      setInterval(() => this.refresh(), 8000)
+	      await Promise.all([this.refresh(), this.loadWSLCapability()])
+	      this._refreshTimer = setInterval(() => this.refresh({ background: true }), 8000)
+	      document.addEventListener('visibilitychange', () => {
+	        if (!document.hidden) this.refresh({ background: true })
+	      })
     },
 
-    async refresh() {
-      this.loading = true
+	    async loadWSLCapability() {
+	      try {
+	        const res = await fetch('/api/wsl/capability')
+	        const d = await res.json()
+	        this.wslCapability = d.success ? (d.data || {}) : { supported:false, installed:false, enabled:false, has_distros:false, show_import:false, distros:[] }
+	      } catch {
+	        this.wslCapability = { supported:false, installed:false, enabled:false, has_distros:false, show_import:false, distros:[] }
+	      }
+	      this.wslDistros = this.canShowWSLImport ? (this.wslCapability.distros || []) : []
+	      if (!this.canShowWSLImport) {
+	        this.wslPorts = []
+	        this.wslSelected = []
+	        this.wslDistro = ''
+	        if (this._wslModal) this._wslModal.hide()
+	      }
+	    },
+
+	    async refresh(options = {}) {
+	      const background = !!options.background
+	      if (background && document.hidden) return
+	      if (this._refreshInFlight) return
+	      this._refreshInFlight = true
+	      if (!background) this.loading = true
       try {
-        const [rRes, sRes] = await Promise.all([fetch('/api/rules'), fetch('/api/stats')])
-        if (rRes.ok) { const d = await rRes.json(); this.rules = d.data || [] }
-        if (sRes.ok) { const d = await sRes.json(); this.stats = d.data || {} }
+	        const res = await fetch('/api/dashboard')
+	        if (res.ok) {
+	          const d = await res.json()
+	          if (d.success && d.data) {
+	            this.rules = d.data.rules || []
+	            this.stats = d.data.stats || {}
+	          }
+	        }
       } finally {
-        this.loading = false
+	        if (!background) this.loading = false
+	        this._refreshInFlight = false
       }
     },
 
@@ -483,8 +520,9 @@ function portForwardApp() {
         const d = await res.json()
         if (d.success) {
           showToast('success', this.form.id ? _t('规则已更新', 'Rule updated') : _t('规则已创建', 'Rule created'))
+	          if (d.message) showToast('warning', d.message)
           this._ruleModal.hide()
-          await this.refresh()
+	          await this.refresh({ background: true })
         } else {
           this.formError = d.message || _t('保存失败', 'Save failed')
         }
@@ -503,7 +541,8 @@ function portForwardApp() {
       })
       const d = await res.json()
       if (d.success) {
-        await this.refresh()
+	        if (d.message) showToast('warning', d.message)
+	        await this.refresh({ background: true })
       } else {
         showToast('danger', d.message || _t('操作失败', 'Operation failed'))
       }
@@ -521,27 +560,27 @@ function portForwardApp() {
       const d = await res.json()
       if (d.success) {
         showToast('success', _t('规则「' + r.name + '」已删除', 'Rule "' + r.name + '" deleted'))
-        await this.refresh()
+	        if (d.message) showToast('warning', d.message)
+	        await this.refresh({ background: true })
       } else {
         showToast('danger', d.message || _t('删除失败', 'Delete failed'))
       }
     },
 
     async showWSLModal() {
-      this.wslDistros = []; this.wslPorts = []; this.wslSelected = []; this.wslDistro = ''
+	      await this.loadWSLCapability()
+	      if (!this.canShowWSLImport) return
+	      this.wslPorts = []
+	      this.wslSelected = []
+	      this.wslDistro = ''
       this._wslModal.show()
-      try {
-        const res = await fetch('/api/wsl/distros')
-        const d = await res.json()
-        this.wslDistros = d.success ? (d.data || []) : []
-        if (!d.success) showToast('warning', d.message || _t('WSL2 不可用', 'WSL2 unavailable'))
-      } catch {
-        showToast('danger', _t('WSL2 接口无响应', 'WSL2 interface not responding'))
+	      if (this.wslDistros.length === 0) {
+	        showToast('warning', this.wslCapability.reason || _t('WSL2 不可用', 'WSL2 unavailable'))
       }
     },
 
     async loadWSLPorts() {
-      if (!this.wslDistro) { this.wslPorts = []; return }
+	      if (!this.canShowWSLImport || !this.wslDistro) { this.wslPorts = []; return }
       this.wslLoading = true
       this.wslSelected = []
       try {
@@ -572,7 +611,7 @@ function portForwardApp() {
     },
 
     async importWSL() {
-      if (this.wslSelected.length === 0) return
+	      if (!this.canShowWSLImport || this.wslSelected.length === 0) return
       this.wslImporting = true
       try {
         const res = await fetch('/api/wsl/import', {
@@ -584,8 +623,9 @@ function portForwardApp() {
         if (d.success) {
           const n = (d.data||[]).length
           showToast('success', _t('成功导入 ' + n + ' 条规则', 'Successfully imported ' + n + ' rule(s)'))
+	          if (d.message) showToast('warning', d.message)
           this._wslModal.hide()
-          await this.refresh()
+	          await this.refresh({ background: true })
         } else {
           showToast('danger', d.message || _t('导入失败', 'Import failed'))
         }
