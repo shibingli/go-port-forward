@@ -244,6 +244,56 @@ func TestDashboardReturnsRulesAndStatsInSinglePayload(t *testing.T) {
 	}
 }
 
+func TestDiagnosticsReturnsRuntimePoolAndManagerSnapshot(t *testing.T) {
+	h, cleanup := newTestHandler(t)
+	defer cleanup()
+
+	_, err := h.mgr.AddRule(&models.CreateRuleRequest{
+		Name:       "diag-rule",
+		ListenAddr: "127.0.0.1",
+		ListenPort: freePort(t),
+		Protocol:   models.ProtocolTCP,
+		TargetAddr: "127.0.0.1",
+		TargetPort: freePort(t),
+		Enabled:    false,
+	})
+	if err != nil {
+		t.Fatalf("seed rule: %v", err)
+	}
+	occupied, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("occupy listen port: %v", err)
+	}
+	defer occupied.Close()
+	_, err = h.mgr.AddRule(&models.CreateRuleRequest{
+		Name:       "diag-error",
+		ListenAddr: "127.0.0.1",
+		ListenPort: occupied.Addr().(*net.TCPAddr).Port,
+		Protocol:   models.ProtocolBoth,
+		TargetAddr: "127.0.0.1",
+		TargetPort: freePort(t),
+		Enabled:    true,
+	})
+	if err != nil {
+		t.Fatalf("seed error rule: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/diagnostics", nil)
+	rec := httptest.NewRecorder()
+
+	h.diagnostics(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, needle := range []string{`"runtime"`, `"pool"`, `"manager"`, `"protocols"`, `"hot_rules"`, `"top_active_rules"`, `"top_traffic_rules"`, `"top_error_rules"`, `"last_error_at"`, `"last_status_change_at"`, `"error_count"`, `"errors"`, `"cached_rules":2`, `"inactive":1`, `"error":1`, `diag-error`} {
+		if !strings.Contains(body, needle) {
+			t.Fatalf("diagnostics payload missing %s: %s", needle, body)
+		}
+	}
+}
+
 func newTestHandler(t *testing.T) (*handler, func()) {
 	return newTestHandlerWithFirewall(t, nil)
 }

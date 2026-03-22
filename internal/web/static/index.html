@@ -53,6 +53,10 @@
         <i class="bi bi-terminal sidebar__link-icon"></i>
         <span class="sidebar__link-text">WSL2 导入</span>
       </a>
+      <a href="#" class="sidebar__link" @click.prevent="showDiagnosticsModal()">
+        <i class="bi bi-activity sidebar__link-icon"></i>
+        <span class="sidebar__link-text">运行诊断</span>
+      </a>
     </nav>
     <!-- Theme toggle at bottom -->
     <div class="mt-auto px-3 py-3">
@@ -84,6 +88,9 @@
         </button>
         <button class="btn btn-sm btn-outline-secondary btn-icon" style="display:none" x-show="canShowWSLImport" @click="showWSLModal()">
           <i class="bi bi-terminal"></i><span class="d-none d-md-inline">WSL2</span>
+        </button>
+        <button class="btn btn-sm btn-outline-secondary btn-icon" @click="showDiagnosticsModal()" title="运行诊断">
+          <i class="bi bi-activity"></i><span class="d-none d-lg-inline">诊断</span>
         </button>
         <button class="btn btn-sm btn-outline-secondary" @click="refresh()" title="刷新">
           <i class="bi bi-arrow-clockwise" :class="{'spin': loading}"></i>
@@ -160,8 +167,8 @@
                 </tr>
               </thead>
               <tbody>
-                <template x-for="r in filteredRules" :key="r.id">
-                  <tr>
+	                <template x-for="r in filteredRules" :key="r.id">
+	                  <tr :id="'rule-row-' + r.id" :class="{ 'rule-row-focus': focusedRuleId === r.id }">
                     <td>
                       <span class="fw-medium" x-text="r.name"></span>
                       <div class="text-muted small" x-text="r.comment" x-show="r.comment"></div>
@@ -361,6 +368,323 @@
 </div>
 
 <!-- ============================================================
+     Diagnostics Modal
+     ============================================================ -->
+<div class="modal fade" id="diagnosticsModal" tabindex="-1" aria-labelledby="diagnosticsModalLabel">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header diagnostics-modal__header">
+        <div class="diagnostics-modal__title-group">
+          <h5 class="modal-title" id="diagnosticsModalLabel"><i class="bi bi-activity me-2"></i>运行诊断</h5>
+          <div class="text-muted small diagnostics-modal__meta" x-text="diagnostics && diagnostics.timestamp ? '更新时间：' + fmtDateTime(diagnostics.timestamp) : '查看 runtime、goroutine pool 与转发器状态' "></div>
+        </div>
+        <div class="diagnostics-modal__actions d-flex align-items-center gap-2">
+	          <label class="form-check form-switch diagnostics-mode-toggle mb-0" :title="diagnosticsLocateOnly ? _t('点击规则项后仅定位并高亮规则行，不自动打开编辑弹窗。', 'Clicking a diagnostics rule will only locate and highlight the row without opening edit dialog.') : _t('点击规则项后将定位并打开对应规则编辑弹窗。', 'Clicking a diagnostics rule will locate and open the rule editor.')">
+	            <input class="form-check-input" type="checkbox" x-model="diagnosticsLocateOnly">
+	            <span class="form-check-label small" x-text="_t('仅定位', 'Locate only')"></span>
+	          </label>
+	          <button type="button" class="btn btn-sm btn-outline-secondary btn-icon" @click="copyDiagnosticsJson()" :disabled="!diagnostics">
+	            <i class="bi bi-clipboard"></i>
+	            <span class="d-none d-sm-inline">复制 JSON</span>
+	          </button>
+	          <button type="button" class="btn btn-sm btn-outline-secondary btn-icon" @click="downloadDiagnosticsJson()" :disabled="!diagnostics">
+	            <i class="bi bi-download"></i>
+	            <span class="d-none d-sm-inline">下载 JSON</span>
+	          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary btn-icon" @click.stop.prevent="loadDiagnostics()" :disabled="diagnosticsLoading">
+            <span x-show="diagnosticsLoading" class="spinner-border spinner-border-sm"></span>
+            <i class="bi bi-arrow-clockwise" x-show="!diagnosticsLoading"></i>
+            <span x-text="diagnosticsLoading ? '刷新中…' : '刷新' "></span>
+          </button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-danger py-2 small mb-3" x-show="diagnosticsError" x-text="diagnosticsError"></div>
+        <div x-show="diagnosticsLoading && !diagnostics" class="loading-spinner mb-3">
+          <div class="loading-spinner__icon"></div>
+          <span class="loading-spinner__text">正在加载诊断信息…</span>
+        </div>
+        <div x-show="diagnostics">
+          <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-3">
+              <div class="stat-card">
+                <div class="stat-card__icon stat-card__icon--primary"><i class="bi bi-diagram-3"></i></div>
+                <div class="stat-card__value" x-text="fmtNumber(diagnostics?.runtime?.goroutines)"></div>
+                <div class="stat-card__label">Goroutines</div>
+              </div>
+            </div>
+            <div class="col-6 col-lg-3">
+              <div class="stat-card">
+                <div class="stat-card__icon stat-card__icon--info"><i class="bi bi-memory"></i></div>
+                <div class="stat-card__value" x-text="fmtBytes(diagnostics?.runtime?.heap_alloc_bytes)"></div>
+                <div class="stat-card__label">Heap Alloc</div>
+              </div>
+            </div>
+            <div class="col-6 col-lg-3">
+              <div class="stat-card">
+                <div class="stat-card__icon stat-card__icon--success"><i class="bi bi-lightning-charge"></i></div>
+                <div class="stat-card__value"><span x-text="fmtNumber(diagnostics?.pool?.running)"></span>/<span x-text="fmtNumber(diagnostics?.pool?.cap)"></span></div>
+                <div class="stat-card__label">Pool Running / Cap</div>
+              </div>
+            </div>
+            <div class="col-6 col-lg-3">
+              <div class="stat-card">
+                <div class="stat-card__icon stat-card__icon--warning"><i class="bi bi-exclamation-triangle"></i></div>
+                <div class="stat-card__value" x-text="fmtNumber(diagnostics?.manager?.error_rules)"></div>
+                <div class="stat-card__label">错误规则</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-lg-6">
+              <div class="card h-100">
+                <div class="card-header fw-semibold">Runtime</div>
+                <div class="card-body p-0">
+                  <div class="table-responsive">
+                    <table class="table table-sm mb-0 align-middle">
+                      <tbody>
+                        <tr><th class="w-50">Heap Inuse</th><td x-text="fmtBytes(diagnostics?.runtime?.heap_inuse_bytes)"></td></tr>
+                        <tr><th>Heap Objects</th><td x-text="fmtNumber(diagnostics?.runtime?.heap_objects)"></td></tr>
+                        <tr><th>GC 次数</th><td x-text="fmtNumber(diagnostics?.runtime?.num_gc)"></td></tr>
+                        <tr><th>GC 总暂停</th><td x-text="fmtDurationNs(diagnostics?.runtime?.pause_total_ns)"></td></tr>
+                        <tr><th>最近一次 GC</th><td x-text="fmtDateTime(diagnostics?.runtime?.last_gc)"></td></tr>
+                        <tr><th>Running / Runnable</th><td><span x-text="fmtNumber(diagnostics?.runtime?.goroutines_running)"></span> / <span x-text="fmtNumber(diagnostics?.runtime?.goroutines_runnable)"></span></td></tr>
+                        <tr><th>Waiting / Syscall</th><td><span x-text="fmtNumber(diagnostics?.runtime?.goroutines_waiting)"></span> / <span x-text="fmtNumber(diagnostics?.runtime?.goroutines_syscall)"></span></td></tr>
+                        <tr><th>Threads Live</th><td x-text="fmtNumber(diagnostics?.runtime?.threads_live)"></td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <div class="card h-100">
+                <div class="card-header fw-semibold">Manager / Rule Health</div>
+                <div class="card-body p-0">
+                  <div class="table-responsive">
+                    <table class="table table-sm mb-0 align-middle">
+                      <tbody>
+                        <tr><th class="w-50">缓存规则</th><td x-text="fmtNumber(diagnostics?.manager?.cached_rules)"></td></tr>
+                        <tr><th>活跃 Forwarder</th><td x-text="fmtNumber(diagnostics?.manager?.active_forwarders)"></td></tr>
+                        <tr><th>规则状态</th><td><span class="text-success" x-text="fmtNumber(diagnostics?.manager?.rule_health?.active)"></span> / <span class="text-secondary" x-text="fmtNumber(diagnostics?.manager?.rule_health?.inactive)"></span> / <span class="text-danger" x-text="fmtNumber(diagnostics?.manager?.rule_health?.error)"></span></td></tr>
+                        <tr><th>总规则数</th><td x-text="fmtNumber(diagnostics?.manager?.stats?.total_rules)"></td></tr>
+                        <tr><th>总连接数</th><td x-text="fmtNumber(diagnostics?.manager?.stats?.total_conns)"></td></tr>
+                        <tr><th>总流入</th><td x-text="fmtBytes(diagnostics?.manager?.stats?.total_bytes_in)"></td></tr>
+                        <tr><th>总流出</th><td x-text="fmtBytes(diagnostics?.manager?.stats?.total_bytes_out)"></td></tr>
+                        <tr><th>Pool Free</th><td x-text="fmtNumber(diagnostics?.pool?.free)"></td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card mb-4">
+            <div class="card-header fw-semibold">协议统计</div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                  <thead>
+                    <tr>
+                      <th>协议</th>
+                      <th>规则数</th>
+                      <th>活跃 Forwarder</th>
+                      <th>流入</th>
+                      <th>流出</th>
+                      <th>活跃连接</th>
+                      <th>总连接</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="badge text-bg-secondary rounded-pill">TCP</span></td>
+                      <td x-text="fmtNumber(diagnostics?.manager?.protocols?.tcp?.configured_rules)"></td>
+                      <td x-text="fmtNumber(diagnostics?.manager?.protocols?.tcp?.active_forwarders)"></td>
+                      <td x-text="fmtBytes(diagnostics?.manager?.protocols?.tcp?.bytes_in)"></td>
+                      <td x-text="fmtBytes(diagnostics?.manager?.protocols?.tcp?.bytes_out)"></td>
+                      <td x-text="fmtNumber(diagnostics?.manager?.protocols?.tcp?.active_conns)"></td>
+                      <td x-text="fmtNumber(diagnostics?.manager?.protocols?.tcp?.total_conns)"></td>
+                    </tr>
+                    <tr>
+                      <td><span class="badge text-bg-secondary rounded-pill">UDP</span></td>
+                      <td x-text="fmtNumber(diagnostics?.manager?.protocols?.udp?.configured_rules)"></td>
+                      <td x-text="fmtNumber(diagnostics?.manager?.protocols?.udp?.active_forwarders)"></td>
+                      <td x-text="fmtBytes(diagnostics?.manager?.protocols?.udp?.bytes_in)"></td>
+                      <td x-text="fmtBytes(diagnostics?.manager?.protocols?.udp?.bytes_out)"></td>
+                      <td x-text="fmtNumber(diagnostics?.manager?.protocols?.udp?.active_conns)"></td>
+                      <td x-text="fmtNumber(diagnostics?.manager?.protocols?.udp?.total_conns)"></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+	          <div class="card mb-4">
+	            <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+	              <span>热点规则</span>
+	              <span class="text-muted small">按活跃连接 / 流量 / 总连接综合排序</span>
+	            </div>
+	            <div class="card-body p-0">
+	              <div class="empty-state py-4" x-show="!diagnostics?.manager?.hot_rules || diagnostics.manager.hot_rules.length === 0">
+	                <div class="empty-state__icon"><i class="bi bi-bar-chart"></i></div>
+	                <div class="empty-state__title">暂无热点规则数据</div>
+	              </div>
+	              <div class="table-responsive" x-show="diagnostics?.manager?.hot_rules && diagnostics.manager.hot_rules.length > 0">
+	                <table class="table table-sm mb-0 align-middle">
+	                  <thead>
+	                    <tr>
+	                      <th>规则</th>
+	                      <th>状态</th>
+	                      <th>监听</th>
+	                      <th>总流量</th>
+	                      <th>活跃连接</th>
+	                      <th>总连接</th>
+		                      <th>操作</th>
+	                    </tr>
+	                  </thead>
+	                  <tbody>
+	                    <template x-for="item in (diagnostics?.manager?.hot_rules || [])" :key="item.id">
+	                      <tr>
+	                        <td>
+		                          <button type="button" class="btn btn-link btn-sm p-0 diagnostics-link fw-semibold" @click="inspectRuleFromDiagnostics(item.id)" x-text="item.name"></button>
+		                          <div class="text-muted small" x-text="(item.protocol || 'tcp').toUpperCase() + ' · ' + summaryTimeMeta(item)"></div>
+	                        </td>
+		                        <td><span class="badge--status" :class="statusClass(item.status)"><span class="badge--status-dot"></span><span x-text="statusLabel(item.status)"></span></span></td>
+	                        <td x-text="(item.listen_addr || '0.0.0.0') + ':' + item.listen_port"></td>
+	                        <td><span x-text="fmtBytes(item.total_bytes)"></span><div class="text-muted small">↑ <span x-text="fmtBytes(item.bytes_in)"></span> / ↓ <span x-text="fmtBytes(item.bytes_out)"></span></div></td>
+	                        <td x-text="fmtNumber(item.active_conns)"></td>
+	                        <td x-text="fmtNumber(item.total_conns)"></td>
+		                        <td><button type="button" class="btn btn-xs btn-outline-primary" @click="inspectRuleFromDiagnostics(item.id, { locateOnly: true })">定位</button></td>
+	                      </tr>
+	                    </template>
+	                  </tbody>
+	                </table>
+	              </div>
+	            </div>
+	          </div>
+
+		          <div class="row g-3 mb-4">
+		            <div class="col-lg-4">
+		              <div class="card h-100">
+		                <div class="card-header fw-semibold">Top Active Rules</div>
+		                <div class="card-body p-0">
+		                  <div class="empty-state py-4" x-show="!diagnostics?.manager?.top_active_rules || diagnostics.manager.top_active_rules.length === 0">
+		                    <div class="empty-state__title">暂无活跃连接热点</div>
+		                  </div>
+		                  <div class="list-group list-group-flush" x-show="diagnostics?.manager?.top_active_rules && diagnostics.manager.top_active_rules.length > 0">
+		                    <template x-for="item in (diagnostics?.manager?.top_active_rules || [])" :key="'active-' + item.id">
+		                      <div class="list-group-item diagnostics-list__item">
+		                        <div class="d-flex justify-content-between gap-3 align-items-start flex-wrap">
+		                          <div>
+		                            <button type="button" class="btn btn-link btn-sm p-0 diagnostics-link fw-semibold" @click="inspectRuleFromDiagnostics(item.id)" x-text="item.name"></button>
+		                            <div class="text-muted small" x-text="summaryTimeMeta(item)"></div>
+		                          </div>
+		                          <div class="text-end">
+		                            <div class="diagnostics-metric" x-text="fmtNumber(item.active_conns)"></div>
+		                            <div class="text-muted small">活跃连接</div>
+		                          </div>
+		                        </div>
+		                      </div>
+		                    </template>
+		                  </div>
+		                </div>
+		              </div>
+		            </div>
+		            <div class="col-lg-4">
+		              <div class="card h-100">
+		                <div class="card-header fw-semibold">Top Traffic Rules</div>
+		                <div class="card-body p-0">
+		                  <div class="empty-state py-4" x-show="!diagnostics?.manager?.top_traffic_rules || diagnostics.manager.top_traffic_rules.length === 0">
+		                    <div class="empty-state__title">暂无流量热点</div>
+		                  </div>
+		                  <div class="list-group list-group-flush" x-show="diagnostics?.manager?.top_traffic_rules && diagnostics.manager.top_traffic_rules.length > 0">
+		                    <template x-for="item in (diagnostics?.manager?.top_traffic_rules || [])" :key="'traffic-' + item.id">
+		                      <div class="list-group-item diagnostics-list__item">
+		                        <div class="d-flex justify-content-between gap-3 align-items-start flex-wrap">
+		                          <div>
+		                            <button type="button" class="btn btn-link btn-sm p-0 diagnostics-link fw-semibold" @click="inspectRuleFromDiagnostics(item.id)" x-text="item.name"></button>
+		                            <div class="text-muted small" x-text="summaryTimeMeta(item)"></div>
+		                          </div>
+		                          <div class="text-end">
+		                            <div class="diagnostics-metric" x-text="fmtBytes(item.total_bytes)"></div>
+		                            <div class="text-muted small">总流量</div>
+		                          </div>
+		                        </div>
+		                      </div>
+		                    </template>
+		                  </div>
+		                </div>
+		              </div>
+		            </div>
+		            <div class="col-lg-4">
+		              <div class="card h-100">
+		                <div class="card-header fw-semibold">Top Error Rules</div>
+		                <div class="card-body p-0">
+		                  <div class="empty-state py-4" x-show="!diagnostics?.manager?.top_error_rules || diagnostics.manager.top_error_rules.length === 0">
+		                    <div class="empty-state__title">暂无异常热点</div>
+		                  </div>
+		                  <div class="list-group list-group-flush" x-show="diagnostics?.manager?.top_error_rules && diagnostics.manager.top_error_rules.length > 0">
+		                    <template x-for="item in (diagnostics?.manager?.top_error_rules || [])" :key="'error-' + item.id">
+		                      <div class="list-group-item diagnostics-list__item">
+		                        <div class="d-flex justify-content-between gap-3 align-items-start flex-wrap">
+		                          <div>
+		                            <button type="button" class="btn btn-link btn-sm p-0 diagnostics-link fw-semibold" @click="inspectRuleFromDiagnostics(item.id)" x-text="item.name"></button>
+		                            <div class="text-danger small" x-text="item.error || '—'"></div>
+		                            <div class="text-muted small" x-text="summaryTimeMeta(item)"></div>
+		                          </div>
+		                          <div class="text-end">
+		                            <div class="diagnostics-metric" x-text="fmtNumber(item.error_count)"></div>
+		                            <div class="text-muted small">错误次数</div>
+		                          </div>
+		                        </div>
+		                      </div>
+		                    </template>
+		                  </div>
+		                </div>
+		              </div>
+		            </div>
+		          </div>
+
+          <div class="card">
+            <div class="card-header fw-semibold">错误规则摘要</div>
+            <div class="card-body p-0">
+              <div class="empty-state py-4" x-show="!diagnostics?.manager?.errors || diagnostics.manager.errors.length === 0">
+                <div class="empty-state__icon"><i class="bi bi-check-circle"></i></div>
+                <div class="empty-state__title">当前没有错误规则</div>
+              </div>
+              <div class="list-group list-group-flush" x-show="diagnostics?.manager?.errors && diagnostics.manager.errors.length > 0">
+	                <template x-for="item in (diagnostics?.manager?.errors || [])" :key="item.id">
+	                  <div class="list-group-item diagnostics-list__item">
+                    <div class="d-flex justify-content-between gap-3 flex-wrap">
+                      <div>
+	                        <button type="button" class="btn btn-link btn-sm p-0 diagnostics-link fw-semibold" @click="inspectRuleFromDiagnostics(item.id)" x-text="item.name"></button>
+                        <div class="text-muted small"><span x-text="(item.protocol || 'tcp').toUpperCase()"></span> · <span x-text="(item.listen_addr || '0.0.0.0') + ':' + item.listen_port"></span></div>
+	                        <div class="text-muted small" x-text="summaryTimeMeta(item)"></div>
+                      </div>
+	                      <div class="text-end diagnostics-actions-wrap">
+	                        <div class="text-danger small mb-2" style="max-width:42rem" x-text="item.error"></div>
+	                        <div class="d-flex justify-content-end gap-2 align-items-center flex-wrap">
+	                          <span class="badge text-bg-danger rounded-pill" x-text="'错误次数 ' + fmtNumber(item.error_count)"></span>
+	                          <button type="button" class="btn btn-xs btn-outline-primary" @click="inspectRuleFromDiagnostics(item.id, { locateOnly: true })">定位</button>
+	                        </div>
+	                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
      Confirm Dialog Modal
      ============================================================ -->
 <div class="modal fade" id="confirm-modal" tabindex="-1">
@@ -421,9 +745,19 @@ function portForwardApp() {
     wslSelected: [],
     wslLoading: false,
     wslImporting: false,
+	    diagnostics: null,
+	    diagnosticsLoading: false,
+	    diagnosticsError: '',
+	    _diagnosticsInFlight: false,
+	    diagnosticsLocateOnly: false,
+	    focusedRuleId: '',
     _wslModal: null,
+	    _diagnosticsModal: null,
+	    _diagnosticsTimer: null,
+	    _diagnosticsVisible: false,
 	    _refreshTimer: null,
 	    _refreshInFlight: false,
+	    _focusedRuleTimer: null,
 
     get filteredRules() {
       const q = this.search.trim().toLowerCase()
@@ -443,10 +777,22 @@ function portForwardApp() {
     async init() {
       this._ruleModal = new bootstrap.Modal(document.getElementById('ruleModal'))
       this._wslModal  = new bootstrap.Modal(document.getElementById('wslModal'))
+	      const diagnosticsModalEl = document.getElementById('diagnosticsModal')
+	      this._diagnosticsModal = new bootstrap.Modal(diagnosticsModalEl)
+	      diagnosticsModalEl.addEventListener('shown.bs.modal', () => {
+	        this._diagnosticsVisible = true
+	        this.loadDiagnostics()
+	        this.startDiagnosticsRefresh()
+	      })
+	      diagnosticsModalEl.addEventListener('hidden.bs.modal', () => {
+	        this._diagnosticsVisible = false
+	        this.stopDiagnosticsRefresh()
+	      })
 	      await Promise.all([this.refresh(), this.loadWSLCapability()])
 	      this._refreshTimer = setInterval(() => this.refresh({ background: true }), 8000)
 	      document.addEventListener('visibilitychange', () => {
 	        if (!document.hidden) this.refresh({ background: true })
+	        if (this._diagnosticsVisible && !document.hidden) this.loadDiagnostics({ background: true })
 	      })
     },
 
@@ -500,6 +846,39 @@ function portForwardApp() {
       this.form = { ...r }
       this._ruleModal.show()
     },
+
+	    async inspectRuleFromDiagnostics(id, options = {}) {
+	      if (!id) return
+	      const locateOnly = options.locateOnly ?? this.diagnosticsLocateOnly
+	      if (!this.rules.some(r => r.id === id)) {
+	        await this.refresh({ background: true })
+	      }
+	      const rule = this.rules.find(r => r.id === id)
+	      if (!rule) {
+	        showToast('warning', _t('未找到对应规则，可能已被删除。', 'The corresponding rule was not found. It may have been deleted.'))
+	        return
+	      }
+	      this.search = ''
+	      this.focusRuleRow(id)
+	      if (this._diagnosticsModal) this._diagnosticsModal.hide()
+	      if (locateOnly) {
+	        showToast('info', _t('已定位到对应规则', 'Located the corresponding rule'))
+	        return
+	      }
+	      window.setTimeout(() => this.editRule(rule), 220)
+	    },
+
+	    focusRuleRow(id) {
+	      this.focusedRuleId = id
+	      if (this._focusedRuleTimer) clearTimeout(this._focusedRuleTimer)
+	      window.requestAnimationFrame(() => {
+	        const row = document.getElementById('rule-row-' + id)
+	        if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+	      })
+	      this._focusedRuleTimer = window.setTimeout(() => {
+	        if (this.focusedRuleId === id) this.focusedRuleId = ''
+	      }, 3200)
+	    },
 
     async saveRule() {
       this.formError = ''
@@ -578,6 +957,93 @@ function portForwardApp() {
 	        showToast('warning', this.wslCapability.reason || _t('WSL2 不可用', 'WSL2 unavailable'))
       }
     },
+
+	    showDiagnosticsModal() {
+	      this._diagnosticsModal.show()
+	    },
+
+	    startDiagnosticsRefresh() {
+	      if (this._diagnosticsTimer) return
+	      this._diagnosticsTimer = setInterval(() => this.loadDiagnostics({ background: true }), 5000)
+	    },
+
+	    stopDiagnosticsRefresh() {
+	      if (!this._diagnosticsTimer) return
+	      clearInterval(this._diagnosticsTimer)
+	      this._diagnosticsTimer = null
+	    },
+
+	    async loadDiagnostics(options = {}) {
+	      const background = !!options.background
+	      if (background && (!this._diagnosticsVisible || document.hidden)) return
+	      if (this._diagnosticsInFlight) return
+	      this._diagnosticsInFlight = true
+	      if (!background) this.diagnosticsLoading = true
+	      this.diagnosticsError = ''
+	      try {
+	        const res = await fetch('/api/diagnostics', { headers: { 'Accept': 'application/json' }, cache: 'no-store' })
+	        const contentType = res.headers.get('content-type') || ''
+	        const d = contentType.includes('application/json') ? await res.json() : null
+	        if (!res.ok) {
+	          this.diagnosticsError = d?.message || (res.status === 404
+	            ? _t('诊断接口不可用，请刷新页面或重启到最新版本。', 'Diagnostics endpoint is unavailable. Please refresh or restart with the latest build.')
+	            : _t('加载诊断信息失败', 'Failed to load diagnostics'))
+	          return
+	        }
+	        if (d.success) {
+	          this.diagnostics = d.data || null
+	        } else {
+	          this.diagnosticsError = d.message || _t('加载诊断信息失败', 'Failed to load diagnostics')
+	        }
+	      } catch (e) {
+	        this.diagnosticsError = _t('加载诊断信息失败: ', 'Failed to load diagnostics: ') + e.message
+	      } finally {
+	        if (!background) this.diagnosticsLoading = false
+	        this._diagnosticsInFlight = false
+	      }
+	    },
+
+	    diagnosticsJsonText() {
+	      return JSON.stringify(this.diagnostics || {}, null, 2)
+	    },
+
+	    async copyDiagnosticsJson() {
+	      if (!this.diagnostics) return
+	      const text = this.diagnosticsJsonText()
+	      try {
+	        if (navigator.clipboard?.writeText) {
+	          await navigator.clipboard.writeText(text)
+	        } else {
+	          const ta = document.createElement('textarea')
+	          ta.value = text
+	          ta.setAttribute('readonly', '')
+	          ta.style.position = 'fixed'
+	          ta.style.opacity = '0'
+	          document.body.appendChild(ta)
+	          ta.select()
+	          document.execCommand('copy')
+	          document.body.removeChild(ta)
+	        }
+	        showToast('success', _t('已复制 diagnostics JSON', 'Diagnostics JSON copied'))
+	      } catch (e) {
+	        showToast('danger', _t('复制 diagnostics JSON 失败', 'Failed to copy diagnostics JSON') + ': ' + e.message)
+	      }
+	    },
+
+	    downloadDiagnosticsJson() {
+	      if (!this.diagnostics) return
+	      const stamp = String(this.diagnostics?.timestamp || new Date().toISOString()).replace(/[.:]/g, '-')
+	      const blob = new Blob([this.diagnosticsJsonText()], { type: 'application/json;charset=utf-8' })
+	      const url = URL.createObjectURL(blob)
+	      const link = document.createElement('a')
+	      link.href = url
+	      link.download = 'diagnostics-' + stamp + '.json'
+	      document.body.appendChild(link)
+	      link.click()
+	      document.body.removeChild(link)
+	      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+	      showToast('success', _t('已下载 diagnostics 快照', 'Diagnostics snapshot downloaded'))
+	    },
 
     async loadWSLPorts() {
 	      if (!this.canShowWSLImport || !this.wslDistro) { this.wslPorts = []; return }
@@ -661,6 +1127,31 @@ function portForwardApp() {
       let i = 0, v = n
       while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
       return v.toFixed(1) + ' ' + u[i]
+	    },
+
+	    fmtNumber(n) {
+	      return Number(n || 0).toLocaleString()
+	    },
+
+	    fmtDateTime(v) {
+	      if (!v) return '—'
+	      const d = new Date(v)
+	      return Number.isNaN(d.getTime()) ? v : d.toLocaleString()
+	    },
+
+	    summaryTimeMeta(item) {
+	      const parts = []
+	      if (item?.last_error_at) parts.push('最近错误 ' + this.fmtDateTime(item.last_error_at))
+	      if (item?.last_status_change_at) parts.push('状态变化 ' + this.fmtDateTime(item.last_status_change_at))
+	      if (item?.updated_at) parts.push('配置更新 ' + this.fmtDateTime(item.updated_at))
+	      return parts.join(' · ') || '暂无时间线'
+	    },
+
+	    fmtDurationNs(ns) {
+	      const ms = Number(ns || 0) / 1e6
+	      if (!ms) return '0 ms'
+	      if (ms >= 1000) return (ms / 1000).toFixed(2) + ' s'
+	      return ms.toFixed(2) + ' ms'
     }
   }
 }

@@ -78,6 +78,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/rules/{id}", h.deleteRule)
 	mux.HandleFunc("PUT /api/rules/{id}/toggle", h.toggleRule)
 	mux.HandleFunc("GET /api/dashboard", h.dashboard)
+	mux.HandleFunc("GET /api/diagnostics", h.diagnostics)
 	mux.HandleFunc("GET /api/stats", h.globalStats)
 
 	// WSL

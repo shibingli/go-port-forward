@@ -24,9 +24,12 @@ type TCPForwarder struct {
 	rule     *models.ForwardRule
 	cancel   context.CancelFunc
 	wg       sync.WaitGroup
+	stopOnce sync.Once
 
 	dialTimeout time.Duration
 	bufferSize  int
+	connMu      sync.Mutex
+	conns       map[net.Conn]struct{}
 
 	// stats (atomic)
 	bytesIn     atomic.Int64
@@ -46,6 +49,7 @@ func newTCPForwarder(rule *models.ForwardRule, dialTimeoutSec, bufferSize int) *
 		rule:        rule,
 		dialTimeout: time.Duration(dialTimeoutSec) * time.Second,
 		bufferSize:  bufferSize,
+		conns:       make(map[net.Conn]struct{}),
 	}
 }
 
@@ -68,12 +72,15 @@ func (f *TCPForwarder) Start() error {
 }
 
 func (f *TCPForwarder) Stop() {
-	if f.cancel != nil {
-		f.cancel()
-	}
-	if f.listener != nil {
-		_ = f.listener.Close()
-	}
+	f.stopOnce.Do(func() {
+		if f.cancel != nil {
+			f.cancel()
+		}
+		if f.listener != nil {
+			_ = f.listener.Close()
+		}
+		f.closeTrackedConns()
+	})
 	f.wg.Wait()
 }
 
@@ -99,6 +106,7 @@ func (f *TCPForwarder) acceptLoop(ctx context.Context) {
 		}
 		rule := f.rule
 		c := conn
+		f.wg.Add(1)
 		// Use global goroutine pool via pkg/pool
 		if err := pool.Submit(func() { f.handleConn(ctx, c, rule) }); err != nil {
 			logger.L.Warn("pool submit failed, running in new goroutine", zap.Error(err))
@@ -108,7 +116,10 @@ func (f *TCPForwarder) acceptLoop(ctx context.Context) {
 }
 
 func (f *TCPForwarder) handleConn(ctx context.Context, src net.Conn, rule *models.ForwardRule) {
+	defer f.wg.Done()
 	defer src.Close()
+	f.trackConn(src)
+	defer f.untrackConn(src)
 	f.activeConns.Add(1)
 	f.totalConns.Add(1)
 	defer f.activeConns.Add(-1)
@@ -132,6 +143,8 @@ func (f *TCPForwarder) handleConn(ctx context.Context, src net.Conn, rule *model
 		return
 	}
 	defer dst.Close()
+	f.trackConn(dst)
+	defer f.untrackConn(dst)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -167,4 +180,34 @@ func (f *TCPForwarder) copyBuf(dst io.Writer, src io.Reader) int64 {
 
 func (f *TCPForwarder) Stats() (bytesIn, bytesOut, active, total int64) {
 	return f.bytesIn.Load(), f.bytesOut.Load(), f.activeConns.Load(), f.totalConns.Load()
+}
+
+func (f *TCPForwarder) trackConn(conn net.Conn) {
+	if conn == nil {
+		return
+	}
+	f.connMu.Lock()
+	f.conns[conn] = struct{}{}
+	f.connMu.Unlock()
+}
+
+func (f *TCPForwarder) untrackConn(conn net.Conn) {
+	if conn == nil {
+		return
+	}
+	f.connMu.Lock()
+	delete(f.conns, conn)
+	f.connMu.Unlock()
+}
+
+func (f *TCPForwarder) closeTrackedConns() {
+	f.connMu.Lock()
+	conns := make([]net.Conn, 0, len(f.conns))
+	for conn := range f.conns {
+		conns = append(conns, conn)
+	}
+	f.connMu.Unlock()
+	for _, conn := range conns {
+		_ = conn.Close()
+	}
 }

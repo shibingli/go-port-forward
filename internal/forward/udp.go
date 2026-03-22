@@ -32,6 +32,7 @@ type UDPForwarder struct {
 	timeout    time.Duration
 	bytesIn    atomic.Int64
 	bytesOut   atomic.Int64
+	active     atomic.Int64
 	totalConns atomic.Int64
 	stopOnce   sync.Once
 	mu         sync.Mutex
@@ -83,9 +84,11 @@ func (f *UDPForwarder) Stop() {
 			_ = f.conn.Close()
 		}
 		f.mu.Lock()
-		for _, s := range f.sessions {
+		for key, s := range f.sessions {
 			_ = s.upstream.Close()
+			delete(f.sessions, key)
 		}
+		f.active.Store(0)
 		f.mu.Unlock()
 	})
 	f.wg.Wait()
@@ -115,7 +118,7 @@ func (f *UDPForwarder) readLoop() {
 			}
 		}
 		// Copy packet data for async processing
-		pkt := make([]byte, n)
+		pkt := pool.GetBuffer(n)[:n]
 		copy(pkt, buf[:n])
 		// Use goroutine pool via pkg/pool
 		if err := pool.Submit(func() { f.forward(srcAddr, pkt) }); err != nil {
@@ -125,30 +128,21 @@ func (f *UDPForwarder) readLoop() {
 }
 
 func (f *UDPForwarder) forward(srcAddr *net.UDPAddr, data []byte) {
-	key := srcAddr.String()
-	f.mu.Lock()
-	sess, ok := f.sessions[key]
-	if !ok {
-		up, err := net.DialUDP("udp", nil, f.targetAddr)
-		if err != nil {
-			f.mu.Unlock()
-			logger.L.Warn("UDP dial failed", zap.String("target", f.targetAddr.String()), zap.Error(err))
-			return
-		}
-		sess = &udpSession{upstream: up, lastSeen: time.Now()}
-		f.sessions[key] = sess
-		f.totalConns.Add(1)
-		// relay replies back to client
-		go f.relayBack(srcAddr, sess)
+	defer pool.PutBuffer(data)
+	if f.isStopping() {
+		return
 	}
-	sess.lastSeen = time.Now()
-	f.mu.Unlock()
+	sess := f.getOrCreateSession(srcAddr)
+	if sess == nil {
+		return
+	}
 
 	n, _ := sess.upstream.Write(data)
 	f.bytesIn.Add(int64(n))
 }
 
 func (f *UDPForwarder) relayBack(clientAddr *net.UDPAddr, sess *udpSession) {
+	defer f.wg.Done()
 	// Use pooled buffer for relay
 	buf := pool.GetBuffer(65535)
 	defer pool.PutBuffer(buf)
@@ -177,6 +171,7 @@ func (f *UDPForwarder) cleanupLoop() {
 				if now.Sub(s.lastSeen) > f.timeout {
 					_ = s.upstream.Close()
 					delete(f.sessions, k)
+					f.active.Add(-1)
 				}
 			}
 			f.mu.Unlock()
@@ -185,8 +180,68 @@ func (f *UDPForwarder) cleanupLoop() {
 }
 
 func (f *UDPForwarder) Stats() (bytesIn, bytesOut, active, total int64) {
+	return f.bytesIn.Load(), f.bytesOut.Load(), f.active.Load(), f.totalConns.Load()
+}
+
+func (f *UDPForwarder) getOrCreateSession(srcAddr *net.UDPAddr) *udpSession {
+	key := srcAddr.String()
+	now := time.Now()
+
 	f.mu.Lock()
-	active = int64(len(f.sessions))
+	if sess, ok := f.sessions[key]; ok {
+		sess.lastSeen = now
+		f.mu.Unlock()
+		return sess
+	}
 	f.mu.Unlock()
-	return f.bytesIn.Load(), f.bytesOut.Load(), active, f.totalConns.Load()
+	if f.isStopping() {
+		return nil
+	}
+
+	up, err := net.DialUDP("udp", nil, f.targetAddr)
+	if err != nil {
+		logger.L.Warn("UDP dial failed", zap.String("target", f.targetAddr.String()), zap.Error(err))
+		return nil
+	}
+
+	f.mu.Lock()
+	if sess, ok := f.sessions[key]; ok {
+		sess.lastSeen = now
+		f.mu.Unlock()
+		_ = up.Close()
+		return sess
+	}
+	if f.isStopping() {
+		f.mu.Unlock()
+		_ = up.Close()
+		return nil
+	}
+	sess := &udpSession{upstream: up, lastSeen: now}
+	f.sessions[key] = sess
+	f.active.Add(1)
+	f.totalConns.Add(1)
+	f.wg.Add(1)
+	go f.relayBack(cloneUDPAddr(srcAddr), sess)
+	f.mu.Unlock()
+	return sess
+}
+
+func cloneUDPAddr(addr *net.UDPAddr) *net.UDPAddr {
+	if addr == nil {
+		return nil
+	}
+	clone := *addr
+	if addr.IP != nil {
+		clone.IP = append(net.IP(nil), addr.IP...)
+	}
+	return &clone
+}
+
+func (f *UDPForwarder) isStopping() bool {
+	select {
+	case <-f.stopCh:
+		return true
+	default:
+		return false
+	}
 }

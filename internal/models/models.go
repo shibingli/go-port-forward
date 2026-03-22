@@ -66,6 +66,108 @@ type Stats struct {
 	TotalConns    int64 `json:"total_conns"`
 }
 
+// RuleHealthSummary summarizes rule status counts for diagnostics.
+type RuleHealthSummary struct {
+	Active   int `json:"active"`
+	Inactive int `json:"inactive"`
+	Error    int `json:"error"`
+}
+
+// RuntimeDiagnostics captures process-level runtime signals.
+type RuntimeDiagnostics struct {
+	Goroutines         int       `json:"goroutines"`
+	HeapAllocBytes     uint64    `json:"heap_alloc_bytes"`
+	HeapInuseBytes     uint64    `json:"heap_inuse_bytes"`
+	HeapObjects        uint64    `json:"heap_objects"`
+	NumGC              uint32    `json:"num_gc"`
+	PauseTotalNs       uint64    `json:"pause_total_ns"`
+	LastGC             time.Time `json:"last_gc,omitempty"`
+	GoroutinesRunning  uint64    `json:"goroutines_running"`
+	GoroutinesRunnable uint64    `json:"goroutines_runnable"`
+	GoroutinesWaiting  uint64    `json:"goroutines_waiting"`
+	GoroutinesSyscall  uint64    `json:"goroutines_syscall"`
+	ThreadsLive        uint64    `json:"threads_live"`
+}
+
+// PoolDiagnostics captures goroutine pool state.
+type PoolDiagnostics struct {
+	Running int `json:"running"`
+	Free    int `json:"free"`
+	Cap     int `json:"cap"`
+}
+
+// ProtocolTrafficDiagnostics captures protocol-specific forwarding activity.
+type ProtocolTrafficDiagnostics struct {
+	ConfiguredRules  int   `json:"configured_rules"`
+	ActiveForwarders int   `json:"active_forwarders"`
+	BytesIn          int64 `json:"bytes_in"`
+	BytesOut         int64 `json:"bytes_out"`
+	ActiveConns      int64 `json:"active_conns"`
+	TotalConns       int64 `json:"total_conns"`
+}
+
+// ProtocolBreakdownDiagnostics groups protocol-specific diagnostics.
+type ProtocolBreakdownDiagnostics struct {
+	TCP ProtocolTrafficDiagnostics `json:"tcp"`
+	UDP ProtocolTrafficDiagnostics `json:"udp"`
+}
+
+// RuleErrorSummary captures a single rule error for diagnostics display.
+type RuleErrorSummary struct {
+	ID                 string     `json:"id"`
+	Name               string     `json:"name"`
+	Protocol           Protocol   `json:"protocol"`
+	Status             RuleStatus `json:"status"`
+	ListenAddr         string     `json:"listen_addr"`
+	ListenPort         int        `json:"listen_port"`
+	Error              string     `json:"error"`
+	ErrorCount         int64      `json:"error_count"`
+	UpdatedAt          time.Time  `json:"updated_at,omitempty"`
+	LastErrorAt        time.Time  `json:"last_error_at,omitempty"`
+	LastStatusChangeAt time.Time  `json:"last_status_change_at,omitempty"`
+}
+
+// RuleTrafficSummary captures a rule-level traffic/activity summary.
+type RuleTrafficSummary struct {
+	ID                 string     `json:"id"`
+	Name               string     `json:"name"`
+	Protocol           Protocol   `json:"protocol"`
+	Status             RuleStatus `json:"status"`
+	ListenAddr         string     `json:"listen_addr"`
+	ListenPort         int        `json:"listen_port"`
+	BytesIn            int64      `json:"bytes_in"`
+	BytesOut           int64      `json:"bytes_out"`
+	TotalBytes         int64      `json:"total_bytes"`
+	ActiveConns        int64      `json:"active_conns"`
+	TotalConns         int64      `json:"total_conns"`
+	UpdatedAt          time.Time  `json:"updated_at,omitempty"`
+	LastErrorAt        time.Time  `json:"last_error_at,omitempty"`
+	LastStatusChangeAt time.Time  `json:"last_status_change_at,omitempty"`
+}
+
+// ManagerDiagnostics captures manager/cache/runtime forwarding state.
+type ManagerDiagnostics struct {
+	CachedRules      int                          `json:"cached_rules"`
+	ActiveForwarders int                          `json:"active_forwarders"`
+	ErrorRules       int                          `json:"error_rules"`
+	RuleHealth       RuleHealthSummary            `json:"rule_health"`
+	Protocols        ProtocolBreakdownDiagnostics `json:"protocols"`
+	HotRules         []RuleTrafficSummary         `json:"hot_rules"`
+	TopActiveRules   []RuleTrafficSummary         `json:"top_active_rules"`
+	TopTrafficRules  []RuleTrafficSummary         `json:"top_traffic_rules"`
+	TopErrorRules    []RuleErrorSummary           `json:"top_error_rules"`
+	Errors           []RuleErrorSummary           `json:"errors,omitempty"`
+	Stats            *Stats                       `json:"stats"`
+}
+
+// DiagnosticsResponse is the payload returned by the diagnostics endpoint.
+type DiagnosticsResponse struct {
+	Timestamp time.Time          `json:"timestamp"`
+	Runtime   RuntimeDiagnostics `json:"runtime"`
+	Pool      PoolDiagnostics    `json:"pool"`
+	Manager   ManagerDiagnostics `json:"manager"`
+}
+
 // WSLDistro is a type alias for wsl.Distro (WSL2 distribution)
 type WSLDistro = wsl.Distro
 

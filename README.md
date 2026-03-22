@@ -11,6 +11,10 @@ A high-performance cross-platform TCP/UDP port forwarder with a built-in Web UI.
 | 🌐 Github 主站 | https://github.com/shibingli/go-port-forward |
 | 🪞 Gitee 镜像站 | https://gitee.com/shibingli/go-port-forward  |
 
+## 📝 变更记录 | Changelog
+
+- 查看 [CHANGELOG.md](CHANGELOG.md) 获取近期功能增强与发布说明。
+
 ## 📸 截图 | Screenshots
 
 ### 首页 | Dashboard
@@ -25,10 +29,14 @@ A high-performance cross-platform TCP/UDP port forwarder with a built-in Web UI.
 ### WSL2 端口导入 | WSL2 Import
 ![WSL2导入](docs/images/WSL2导入.png)
 
+### 诊断工具 | Diagnostics
+![诊断工具](docs/images/诊断工具.png)
+
 ## ✨ 功能特性 | Features
 
 - **TCP / UDP / Both** 端口转发，支持同时转发双协议
 - **Web 管理界面** — 基于 Alpine.js + Bootstrap 5 的现代化单页应用
+- **运行诊断面板** — 实时查看 runtime / goroutine pool / rule health / 热点规则，并支持一键定位异常规则
 - **WSL2 端口导入** — 自动发现 WSL2 发行版监听端口并一键导入转发规则
 - **跨平台防火墙管理** — Windows (netsh)、Linux (iptables)、macOS (pfctl) 自动添加/删除防火墙规则
 - **系统服务支持** — 可注册为 Windows Service / Linux systemd / macOS launchd 后台服务
@@ -217,6 +225,77 @@ gc:
   enable_monitoring: true
 ```
 
+## 🩺 运行诊断 | Diagnostics
+
+Web UI 右上角或侧边栏提供 **「运行诊断」** 入口，用于快速排查转发规则、资源占用和运行状态问题。
+
+### 面板内容
+
+- **Runtime**：goroutines、heap alloc / inuse、GC 次数与暂停时间、线程数量
+- **Goroutine Pool**：运行中协程数、空闲数、容量
+- **Manager / Rule Health**：缓存规则数、活跃 forwarder 数、规则状态分布、总连接数与流量
+- **协议统计**：分别展示 TCP / UDP 的规则数、活跃 forwarder、流量和连接数
+- **热点规则**：按活跃连接 / 流量 / 总连接综合排序的 Top 规则
+- **Top Active / Traffic / Error Rules**：分别按连接数、流量、错误次数拆分的榜单
+- **错误规则摘要**：显示当前错误信息、错误次数、最近报错时间、最近状态变化时间
+
+### 诊断交互能力
+
+- **自动刷新**：诊断弹窗打开后会自动轮询刷新，关闭后停止刷新
+- **手动刷新**：支持按钮即时拉取最新 diagnostics 数据
+- **规则 drill-down**：点击热点规则或错误规则，可直接定位到规则表并打开对应规则编辑弹窗
+- **仅定位模式**：启用后点击诊断规则项只滚动并高亮对应规则，不自动打开编辑弹窗
+- **快照导出**：支持 **复制 JSON** 与 **下载 JSON**，方便排障留档或提交 issue
+
+### diagnostics JSON 示例
+
+实际返回值会随运行时状态变化，下面是一个精简示例：
+
+```json
+{
+  "success": true,
+  "data": {
+    "timestamp": "2026-03-22T11:11:56+08:00",
+    "runtime": { "goroutines": 12, "heap_alloc_bytes": 1766160 },
+    "pool": { "running": 0, "free": 128, "cap": 128 },
+    "manager": {
+      "cached_rules": 2,
+      "rule_health": { "active": 1, "inactive": 0, "error": 1 },
+      "hot_rules": [
+        { "id": "rule-1", "name": "api-tcp", "total_bytes": 1048576, "active_conns": 3 }
+      ],
+      "top_error_rules": [
+        {
+          "id": "rule-2",
+          "name": "mysql-udp",
+          "error": "dial tcp 127.0.0.1:3306: connectex: connection refused",
+          "error_count": 4,
+          "last_error_at": "2026-03-22T11:10:01+08:00",
+          "last_status_change_at": "2026-03-22T11:10:01+08:00"
+        }
+      ],
+      "errors": []
+    }
+  }
+}
+```
+
+常用字段说明：
+
+- `runtime`：Go 运行时与 GC 快照
+- `pool`：goroutine pool 的运行状态
+- `manager.hot_rules`：综合热点规则
+- `manager.top_active_rules`：按活跃连接排序的规则榜单
+- `manager.top_traffic_rules`：按总流量排序的规则榜单
+- `manager.top_error_rules`：按错误次数排序的规则榜单
+- `manager.errors`：当前处于错误状态的规则摘要
+
+### 适用场景
+
+- 规则显示异常但不确定是配置问题、端口占用还是运行时错误
+- 想快速判断当前瓶颈在连接数、流量还是错误热点
+- 需要导出一份运行快照给同事、测试或 issue 附件
+
 ## 🔌 REST API
 
 | 方法       | 路径                        | 描述           |
@@ -227,12 +306,17 @@ gc:
 | `PUT`    | `/api/rules/{id}`         | 更新规则         |
 | `DELETE` | `/api/rules/{id}`         | 删除规则         |
 | `PUT`    | `/api/rules/{id}/toggle`  | 启用/禁用规则      |
+| `GET`    | `/api/dashboard`          | 获取规则列表与聚合统计  |
 | `GET`    | `/api/stats`              | 获取全局统计       |
+| `GET`    | `/api/diagnostics`        | 获取运行诊断快照     |
+| `GET`    | `/api/wsl/capability`     | 获取 WSL2 能力探测结果 |
 | `GET`    | `/api/wsl/distros`        | 列出 WSL2 发行版  |
 | `GET`    | `/api/wsl/ports/{distro}` | 列出发行版监听端口    |
 | `POST`   | `/api/wsl/import`         | 批量导入 WSL2 端口 |
 
 > 说明：WSL 相关接口仅在 Windows 上可用；在 Linux/macOS 上会返回 `501 Not Implemented`。
+
+> 说明：`/api/diagnostics` 为只读诊断接口，适合接入前端面板、排障脚本或采样快照工具。
 
 ## 📋 系统要求 | Requirements
 

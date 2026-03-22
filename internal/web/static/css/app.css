@@ -777,6 +777,11 @@ code, pre, kbd, samp {
     --bs-table-bg-state: var(--color-bg-hover);
 }
 
+.rule-row-focus > * {
+    --bs-table-bg-state: rgba(21, 101, 192, 0.12);
+    background-color: rgba(21, 101, 192, 0.12) !important;
+}
+
 /* 统一行高度 | Unified row height */
 .table > thead > tr,
 .table > tbody > tr {
@@ -1064,6 +1069,78 @@ input[type="radio"]:active {
 .modal-header {
     padding: var(--spacing-md);
     border-bottom: 1px solid var(--color-border);
+}
+
+.diagnostics-modal__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+}
+
+.diagnostics-modal__title-group {
+    min-width: 0;
+    flex: 1 1 320px;
+}
+
+.diagnostics-modal__meta {
+    margin-top: 4px;
+    word-break: break-word;
+}
+
+.diagnostics-modal__actions {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+.diagnostics-mode-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2rem;
+}
+
+.diagnostics-mode-toggle .form-check-input {
+    float: none;
+    margin: 0;
+}
+
+.diagnostics-mode-toggle .form-check-label {
+    margin: 0;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.diagnostics-link {
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.diagnostics-link:hover {
+    text-decoration: underline;
+}
+
+.diagnostics-list__item {
+    padding-top: 0.875rem;
+    padding-bottom: 0.875rem;
+}
+
+.diagnostics-metric {
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.diagnostics-actions-wrap {
+    max-width: 42rem;
+}
+
+@media (max-width: 576px) {
+    .diagnostics-modal__actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
 }
 
 .modal-title {
