@@ -4,6 +4,10 @@
 
 A high-performance cross-platform TCP/UDP port forwarder with a built-in Web UI.
 
+## 源码地址 | Source Code
+主站：   https://github.com/shibingli/go-port-forward
+镜像站： https://gitee.com/shibingli/go-port-forward
+
 ## ✨ 功能特性 | Features
 
 - **TCP / UDP / Both** 端口转发，支持同时转发双协议
