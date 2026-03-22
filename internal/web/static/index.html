@@ -836,16 +836,59 @@ function portForwardApp() {
 
     showAddModal() {
       this.formError = ''
-      this.form = { name:'', listen_addr:'0.0.0.0', listen_port: null, protocol:'tcp',
-                    target_addr:'', target_port: null, comment:'', enabled:true, add_firewall:false }
+	      this.form = this.newRuleForm()
       this._ruleModal.show()
     },
 
     editRule(r) {
       this.formError = ''
-      this.form = { ...r }
+	      this.form = this.editableRuleForm(r)
       this._ruleModal.show()
     },
+
+	    newRuleForm() {
+	      return {
+	        id: '',
+	        name:'',
+	        listen_addr:'0.0.0.0',
+	        listen_port: null,
+	        protocol:'tcp',
+	        target_addr:'',
+	        target_port: null,
+	        comment:'',
+	        enabled:true,
+	        add_firewall:false,
+	      }
+	    },
+
+	    editableRuleForm(rule = {}) {
+	      return {
+	        id: rule.id || '',
+	        name: rule.name || '',
+	        listen_addr: rule.listen_addr || '0.0.0.0',
+	        listen_port: rule.listen_port ?? null,
+	        protocol: rule.protocol || 'tcp',
+	        target_addr: rule.target_addr || '',
+	        target_port: rule.target_port ?? null,
+	        comment: rule.comment || '',
+	        enabled: rule.enabled ?? true,
+	        add_firewall: rule.add_firewall ?? false,
+	      }
+	    },
+
+	    buildRulePayload() {
+	      return {
+	        name: this.form.name,
+	        listen_addr: this.form.listen_addr,
+	        listen_port: Number(this.form.listen_port),
+	        protocol: this.form.protocol,
+	        target_addr: this.form.target_addr,
+	        target_port: Number(this.form.target_port),
+	        comment: this.form.comment || '',
+	        enabled: !!this.form.enabled,
+	        add_firewall: !!this.form.add_firewall,
+	      }
+	    },
 
 	    async inspectRuleFromDiagnostics(id, options = {}) {
 	      if (!id) return
@@ -891,10 +934,11 @@ function portForwardApp() {
       try {
         const method = this.form.id ? 'PUT' : 'POST'
         const url    = this.form.id ? '/api/rules/'+this.form.id : '/api/rules'
+	        const payload = this.buildRulePayload()
         const res = await fetch(url, {
           method,
           headers: {'Content-Type':'application/json'},
-          body: JSON.stringify(this.form)
+	          body: JSON.stringify(payload)
         })
         const d = await res.json()
         if (d.success) {
