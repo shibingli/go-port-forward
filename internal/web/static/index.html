@@ -720,8 +720,17 @@
 'use strict'
 
 // 国际化辅助 | i18n helper
+// 优先使用用户手动选择的语言，否则根据浏览器语言自动判断
+// Prefer user's manual choice; otherwise auto-detect from browser language
 let _currentLang = (() => {
-  try { return localStorage.getItem('app_lang') || 'zh-CN' } catch { return 'zh-CN' }
+  try {
+    const saved = localStorage.getItem('app_lang')
+    if (saved) return saved
+  } catch {}
+  // 检测浏览器语言，中文环境默认 zh-CN，其余默认 en
+  // Detect browser language: Chinese locales default to zh-CN, others to en
+  const nav = navigator.language || navigator.userLanguage || ''
+  return /^zh\b/i.test(nav) ? 'zh-CN' : 'en'
 })()
 document.documentElement.lang = _currentLang
 const _isEn = () => _currentLang === 'en'
