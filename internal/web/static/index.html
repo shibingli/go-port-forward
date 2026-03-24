@@ -42,26 +42,30 @@
     <nav class="sidebar__nav">
       <a href="#" class="sidebar__link sidebar__link--active" @click.prevent>
         <i class="bi bi-diagram-3 sidebar__link-icon"></i>
-        <span class="sidebar__link-text">转发规则</span>
+        <span class="sidebar__link-text" x-text="t('转发规则','Rules')"></span>
       </a>
       <a href="#" class="sidebar__link" @click.prevent="showAddModal()">
         <i class="bi bi-plus-circle sidebar__link-icon"></i>
-        <span class="sidebar__link-text">添加规则</span>
+        <span class="sidebar__link-text" x-text="t('添加规则','Add Rule')"></span>
       </a>
       <a href="#" class="sidebar__link" style="display:none" x-show="canShowWSLImport" @click.prevent="showWSLModal()">
         <i class="bi bi-terminal sidebar__link-icon"></i>
-        <span class="sidebar__link-text">WSL2 导入</span>
+        <span class="sidebar__link-text" x-text="t('WSL2 导入','WSL2 Import')"></span>
       </a>
       <a href="#" class="sidebar__link" @click.prevent="showDiagnosticsModal()">
         <i class="bi bi-activity sidebar__link-icon"></i>
-        <span class="sidebar__link-text">运行诊断</span>
+        <span class="sidebar__link-text" x-text="t('运行诊断','Diagnostics')"></span>
       </a>
     </nav>
-    <!-- Theme toggle at bottom -->
+    <!-- Language & Theme toggle at bottom -->
     <div class="mt-auto px-3 py-3">
-      <button class="sidebar__link w-100 border-0 bg-transparent text-start" @click="toggleTheme()" title="切换主题">
+      <button class="sidebar__link w-100 border-0 bg-transparent text-start" @click="toggleLang()" :title="t('切换语言','Switch Language')">
+        <i class="bi bi-translate sidebar__link-icon"></i>
+        <span class="sidebar__link-text" x-text="t('English','中文')"></span>
+      </button>
+      <button class="sidebar__link w-100 border-0 bg-transparent text-start" @click="toggleTheme()" :title="t('切换主题','Toggle Theme')">
         <i class="bi sidebar__link-icon" :class="isDark ? 'bi-sun' : 'bi-moon'"></i>
-        <span class="sidebar__link-text" x-text="isDark ? '浅色模式' : '深色模式'"></span>
+        <span class="sidebar__link-text" x-text="isDark ? t('浅色模式','Light') : t('深色模式','Dark')"></span>
       </button>
     </div>
   </aside>
@@ -71,27 +75,27 @@
 
     <!-- Header -->
     <header class="layout__header px-3 d-flex align-items-center">
-      <button class="header__toggle" onclick="toggleSidebar()" title="折叠侧边栏">
+      <button class="header__toggle" onclick="toggleSidebar()" :title="t('折叠侧边栏','Toggle Sidebar')">
         <i class="bi bi-list"></i>
       </button>
-      <span class="header__breadcrumb ms-3 fw-semibold">端口转发管理</span>
+      <span class="header__breadcrumb ms-3 fw-semibold" x-text="t('端口转发管理','Port Forward Manager')"></span>
       <div class="header__spacer"></div>
       <div class="header__actions gap-2">
         <!-- Quick stats chips -->
-        <span class="badge text-bg-secondary rounded-pill px-3">规则 <strong x-text="stats.total_rules||0"></strong></span>
-        <span class="badge text-bg-success rounded-pill px-3">运行中 <strong x-text="stats.active_rules||0"></strong></span>
+        <span class="badge text-bg-secondary rounded-pill px-3"><span x-text="t('规则','Rules')"></span> <strong x-text="stats.total_rules||0"></strong></span>
+        <span class="badge text-bg-success rounded-pill px-3"><span x-text="t('运行中','Active')"></span> <strong x-text="stats.active_rules||0"></strong></span>
         <span class="badge text-bg-info rounded-pill px-3">↑ <span x-text="fmtBytes(stats.total_bytes_in)"></span></span>
         <span class="badge text-bg-primary rounded-pill px-3">↓ <span x-text="fmtBytes(stats.total_bytes_out)"></span></span>
         <button class="btn btn-sm btn-primary btn-icon ms-2" @click="showAddModal()">
-          <i class="bi bi-plus-lg"></i><span>添加规则</span>
+          <i class="bi bi-plus-lg"></i><span x-text="t('添加规则','Add Rule')"></span>
         </button>
         <button class="btn btn-sm btn-outline-secondary btn-icon" style="display:none" x-show="canShowWSLImport" @click="showWSLModal()">
           <i class="bi bi-terminal"></i><span class="d-none d-md-inline">WSL2</span>
         </button>
-        <button class="btn btn-sm btn-outline-secondary btn-icon" @click="showDiagnosticsModal()" title="运行诊断">
-          <i class="bi bi-activity"></i><span class="d-none d-lg-inline">诊断</span>
+        <button class="btn btn-sm btn-outline-secondary btn-icon" @click="showDiagnosticsModal()" :title="t('运行诊断','Diagnostics')">
+          <i class="bi bi-activity"></i><span class="d-none d-lg-inline" x-text="t('诊断','Diag')"></span>
         </button>
-        <button class="btn btn-sm btn-outline-secondary" @click="refresh()" title="刷新">
+        <button class="btn btn-sm btn-outline-secondary" @click="refresh()" :title="t('刷新','Refresh')">
           <i class="bi bi-arrow-clockwise" :class="{'spin': loading}"></i>
         </button>
       </div>
@@ -107,28 +111,28 @@
             <div class="stat-card">
               <div class="stat-card__icon stat-card__icon--primary"><i class="bi bi-diagram-3"></i></div>
               <div class="stat-card__value" x-text="stats.total_rules||0"></div>
-              <div class="stat-card__label">总规则数</div>
+              <div class="stat-card__label" x-text="t('总规则数','Total Rules')"></div>
             </div>
           </div>
           <div class="col-6 col-md-3">
             <div class="stat-card">
               <div class="stat-card__icon stat-card__icon--success"><i class="bi bi-play-circle"></i></div>
               <div class="stat-card__value" x-text="stats.active_rules||0"></div>
-              <div class="stat-card__label">活跃转发</div>
+              <div class="stat-card__label" x-text="t('活跃转发','Active')"></div>
             </div>
           </div>
           <div class="col-6 col-md-3">
             <div class="stat-card">
               <div class="stat-card__icon stat-card__icon--info"><i class="bi bi-arrow-up-circle"></i></div>
               <div class="stat-card__value" x-text="fmtBytes(stats.total_bytes_in)"></div>
-              <div class="stat-card__label">总流入</div>
+              <div class="stat-card__label" x-text="t('总流入','Inbound')"></div>
             </div>
           </div>
           <div class="col-6 col-md-3">
             <div class="stat-card">
               <div class="stat-card__icon stat-card__icon--warning"><i class="bi bi-arrow-down-circle"></i></div>
               <div class="stat-card__value" x-text="fmtBytes(stats.total_bytes_out)"></div>
-              <div class="stat-card__label">总流出</div>
+              <div class="stat-card__label" x-text="t('总流出','Outbound')"></div>
             </div>
           </div>
         </div>
@@ -138,11 +142,11 @@
           <div class="table-container__toolbar">
             <div class="table-container__search">
               <i class="bi bi-search"></i>
-              <input class="form-control form-control-sm" type="search" placeholder="搜索规则名称…" x-model="search"/>
+              <input class="form-control form-control-sm" type="search" :placeholder="t('搜索规则名称…','Search rules…')" x-model="search"/>
             </div>
             <div class="table-container__actions">
               <button class="btn btn-sm btn-primary btn-icon" @click="showAddModal()">
-                <i class="bi bi-plus-lg"></i><span>添加</span>
+                <i class="bi bi-plus-lg"></i><span x-text="t('添加','Add')"></span>
               </button>
               <button class="btn btn-sm btn-outline-secondary btn-icon" style="display:none" x-show="canShowWSLImport" @click="showWSLModal()">
                 <i class="bi bi-terminal"></i><span class="d-none d-sm-inline">WSL2</span>
@@ -154,15 +158,15 @@
             <table class="table table-hover align-middle">
               <thead>
                 <tr>
-                  <th>名称</th>
-                  <th>监听</th>
-                  <th>协议</th>
-                  <th>目标</th>
-                  <th>状态</th>
-                  <th>流入</th>
-                  <th>流出</th>
-                  <th>连接数</th>
-                  <th>操作</th>
+                  <th x-text="t('名称','Name')"></th>
+                  <th x-text="t('监听','Listen')"></th>
+                  <th x-text="t('协议','Proto')"></th>
+                  <th x-text="t('目标','Target')"></th>
+                  <th x-text="t('状态','Status')"></th>
+                  <th x-text="t('流入','In')"></th>
+                  <th x-text="t('流出','Out')"></th>
+                  <th x-text="t('连接数','Conns')"></th>
+                  <th x-text="t('操作','Actions')"></th>
                 </tr>
               </thead>
               <tbody>
@@ -190,14 +194,14 @@
                     <td class="small"><span x-text="r.active_conns"></span>/<span x-text="r.total_conns"></span></td>
                     <td>
                       <div class="d-flex gap-1">
-                        <button class="btn btn-xs btn-outline-secondary" @click="editRule(r)" title="编辑">
+                        <button class="btn btn-xs btn-outline-secondary" @click="editRule(r)" :title="t('编辑','Edit')">
                           <i class="bi bi-pencil"></i>
                         </button>
                         <button class="btn btn-xs" :class="r.enabled ? 'btn-outline-warning' : 'btn-outline-success'"
-                                @click="toggle(r)" :title="r.enabled ? '禁用' : '启用'">
+                                @click="toggle(r)" :title="r.enabled ? t('禁用','Disable') : t('启用','Enable')">
                           <i class="bi" :class="r.enabled ? 'bi-pause-fill' : 'bi-play-fill'"></i>
                         </button>
-                        <button class="btn btn-xs btn-outline-danger" @click="confirmDelete(r)" title="删除">
+                        <button class="btn btn-xs btn-outline-danger" @click="confirmDelete(r)" :title="t('删除','Delete')">
                           <i class="bi bi-trash"></i>
                         </button>
                       </div>
@@ -208,8 +212,8 @@
                   <td colspan="9">
                     <div class="empty-state py-4">
                       <div class="empty-state__icon"><i class="bi bi-inbox"></i></div>
-                      <div class="empty-state__title" x-text="search ? '未找到匹配规则' : '暂无转发规则'"></div>
-                      <div class="empty-state__description" x-show="!search">点击右上角「添加规则」开始配置端口转发。</div>
+                      <div class="empty-state__title" x-text="search ? t('未找到匹配规则','No matching rules') : t('暂无转发规则','No forwarding rules')"></div>
+                      <div class="empty-state__description" x-show="!search" x-text="t('点击右上角「添加规则」开始配置端口转发。','Click \"Add Rule\" in the top-right corner to start.')"></div>
                     </div>
                   </td>
                 </tr>
@@ -222,7 +226,7 @@
     </main>
 
     <footer class="layout__footer text-center">
-      Port Forward Manager &copy; 2025 &nbsp;|&nbsp; 乾擎科技开源工具链
+      Port Forward Manager &copy; 2025 &nbsp;|&nbsp; <span x-text="t('乾擎科技开源工具链','QianQing Open Source Toolchain')"></span>
     </footer>
   </div><!-- /layout__main -->
 </div><!-- /layout -->
@@ -234,7 +238,7 @@
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="ruleModalLabel" x-text="form.id ? '编辑规则' : '添加规则'"></h5>
+        <h5 class="modal-title" id="ruleModalLabel" x-text="form.id ? t('编辑规则','Edit Rule') : t('添加规则','Add Rule')"></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
@@ -242,19 +246,19 @@
         <div class="alert alert-danger py-2 small mb-3" x-show="formError" x-text="formError"></div>
         <div class="row g-3">
           <div class="col-12">
-            <label class="form-label">规则名称 <span class="text-danger">*</span></label>
-            <input class="form-control" placeholder="如：nginx-8080" x-model="form.name"/>
+            <label class="form-label"><span x-text="t('规则名称','Rule Name')"></span> <span class="text-danger">*</span></label>
+            <input class="form-control" :placeholder="t('如：nginx-8080','e.g. nginx-8080')" x-model="form.name"/>
           </div>
           <div class="col-md-8">
-            <label class="form-label">监听地址</label>
+            <label class="form-label" x-text="t('监听地址','Listen Address')"></label>
             <input class="form-control" x-model="form.listen_addr" placeholder="0.0.0.0"/>
           </div>
           <div class="col-md-4">
-            <label class="form-label">监听端口 <span class="text-danger">*</span></label>
+            <label class="form-label"><span x-text="t('监听端口','Listen Port')"></span> <span class="text-danger">*</span></label>
             <input class="form-control" type="number" min="1" max="65535" x-model.number="form.listen_port" placeholder="8080"/>
           </div>
           <div class="col-md-4">
-            <label class="form-label">协议</label>
+            <label class="form-label" x-text="t('协议','Protocol')"></label>
             <select class="form-select" x-model="form.protocol">
               <option value="tcp">TCP</option>
               <option value="udp">UDP</option>
@@ -262,36 +266,36 @@
             </select>
           </div>
           <div class="col-md-5">
-            <label class="form-label">目标地址 <span class="text-danger">*</span></label>
+            <label class="form-label"><span x-text="t('目标地址','Target Address')"></span> <span class="text-danger">*</span></label>
             <input class="form-control" x-model="form.target_addr" placeholder="192.168.1.100"/>
           </div>
           <div class="col-md-3">
-            <label class="form-label">目标端口 <span class="text-danger">*</span></label>
+            <label class="form-label"><span x-text="t('目标端口','Target Port')"></span> <span class="text-danger">*</span></label>
             <input class="form-control" type="number" min="1" max="65535" x-model.number="form.target_port" placeholder="80"/>
           </div>
           <div class="col-12">
-            <label class="form-label">备注</label>
-            <input class="form-control" x-model="form.comment" placeholder="可选备注说明"/>
+            <label class="form-label" x-text="t('备注','Comment')"></label>
+            <input class="form-control" x-model="form.comment" :placeholder="t('可选备注说明','Optional comment')"/>
           </div>
           <div class="col-md-6">
             <div class="form-check form-switch">
               <input class="form-check-input" type="checkbox" x-model="form.enabled" id="chkEnabled"/>
-              <label class="form-check-label" for="chkEnabled">立即启用</label>
+              <label class="form-check-label" for="chkEnabled" x-text="t('立即启用','Enable Now')"></label>
             </div>
           </div>
           <div class="col-md-6">
             <div class="form-check form-switch">
               <input class="form-check-input" type="checkbox" x-model="form.add_firewall" id="chkFw"/>
-              <label class="form-check-label" for="chkFw">自动添加防火墙规则</label>
+              <label class="form-check-label" for="chkFw" x-text="t('自动添加防火墙规则','Auto-add Firewall Rule')"></label>
             </div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-secondary" data-bs-dismiss="modal" x-text="t('取消','Cancel')"></button>
         <button class="btn btn-primary" @click="saveRule()" :disabled="saving">
           <span x-show="saving" class="spinner-border spinner-border-sm me-1"></span>
-          <span x-text="saving ? '保存中…' : '保存'"></span>
+          <span x-text="saving ? t('保存中…','Saving…') : t('保存','Save')"></span>
         </button>
       </div>
     </div>
@@ -305,36 +309,36 @@
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="wslModalLabel"><i class="bi bi-terminal me-2"></i>从 WSL2 导入端口</h5>
+        <h5 class="modal-title" id="wslModalLabel"><i class="bi bi-terminal me-2"></i><span x-text="t('从 WSL2 导入端口','Import Ports from WSL2')"></span></h5>
         <button class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body" style="display:flex;flex-direction:column;height:60vh;overflow:hidden">
         <!-- 固定区域：发行版选择 + 操作按钮 -->
         <div class="flex-shrink-0">
           <div class="mb-3">
-            <label class="form-label">选择发行版</label>
+            <label class="form-label" x-text="t('选择发行版','Select Distro')"></label>
             <select class="form-select" x-model="wslDistro" @change="loadWSLPorts()">
-              <option value="">— 请选择 —</option>
+              <option value="" x-text="t('— 请选择 —','— Select —')"></option>
               <template x-for="d in wslDistros" :key="d.name">
-                <option :value="d.name" x-text="d.name + (d.default ? ' (默认)' : '') + ' [' + d.state + ']'"></option>
+                <option :value="d.name" x-text="d.name + (d.default ? t(' (默认)',' (default)') : '') + ' [' + d.state + ']'"></option>
               </template>
             </select>
           </div>
           <div x-show="wslLoading" class="loading-spinner">
             <div class="loading-spinner__icon"></div>
-            <span class="loading-spinner__text">正在查询端口…</span>
+            <span class="loading-spinner__text" x-text="t('正在查询端口…','Loading ports…')"></span>
           </div>
           <div class="mb-2 d-flex align-items-center gap-2" x-show="wslPorts.length > 0 && !wslLoading">
-            <button class="btn btn-xs btn-outline-secondary" @click="wslSelectAll()">全选</button>
-            <button class="btn btn-xs btn-outline-secondary" @click="wslSelected=[]">清空</button>
-            <span class="text-muted small">已选 <span x-text="wslSelected.length"></span> 项</span>
+            <button class="btn btn-xs btn-outline-secondary" @click="wslSelectAll()" x-text="t('全选','All')"></button>
+            <button class="btn btn-xs btn-outline-secondary" @click="wslSelected=[]" x-text="t('清空','Clear')"></button>
+            <span class="text-muted small"><span x-text="t('已选','Selected')"></span> <span x-text="wslSelected.length"></span> <span x-text="t('项','item(s)')"></span></span>
           </div>
         </div>
         <!-- 滚动区域：端口列表 -->
         <div class="flex-grow-1" style="overflow-y:auto;min-height:0" x-show="wslPorts.length > 0 && !wslLoading">
           <table class="table table-sm table-hover align-middle mb-0" style="position:relative">
             <thead style="position:sticky;top:0;z-index:1;background:var(--bs-modal-bg,var(--bs-body-bg))">
-              <tr><th style="width:2rem"></th><th>协议</th><th>端口</th><th>进程</th><th>本地地址</th></tr>
+              <tr><th style="width:2rem"></th><th x-text="t('协议','Proto')"></th><th x-text="t('端口','Port')"></th><th x-text="t('进程','Process')"></th><th x-text="t('本地地址','Local Addr')"></th></tr>
             </thead>
             <tbody>
               <template x-for="(p, idx) in wslPorts" :key="idx">
@@ -351,15 +355,15 @@
         </div>
         <div class="empty-state py-3" x-show="wslDistro && wslPorts.length === 0 && !wslLoading">
           <div class="empty-state__icon fs-3"><i class="bi bi-info-circle"></i></div>
-          <div class="empty-state__title">未发现监听端口</div>
+          <div class="empty-state__title" x-text="t('未发现监听端口','No listening ports found')"></div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-secondary" data-bs-dismiss="modal" x-text="t('取消','Cancel')"></button>
         <button class="btn btn-success btn-icon" @click="importWSL()" :disabled="wslSelected.length === 0 || wslImporting">
           <span x-show="wslImporting" class="spinner-border spinner-border-sm"></span>
           <i class="bi bi-download" x-show="!wslImporting"></i>
-          <span x-text="wslImporting ? '导入中…' : '导入选中 ('+wslSelected.length+')'"></span>
+          <span x-text="wslImporting ? t('导入中…','Importing…') : t('导入选中','Import') + ' (' + wslSelected.length + ')'"></span>
         </button>
       </div>
     </div>
@@ -374,26 +378,26 @@
     <div class="modal-content">
       <div class="modal-header diagnostics-modal__header">
         <div class="diagnostics-modal__title-group">
-          <h5 class="modal-title" id="diagnosticsModalLabel"><i class="bi bi-activity me-2"></i>运行诊断</h5>
-          <div class="text-muted small diagnostics-modal__meta" x-text="diagnostics && diagnostics.timestamp ? '更新时间：' + fmtDateTime(diagnostics.timestamp) : '查看 runtime、goroutine pool 与转发器状态' "></div>
+          <h5 class="modal-title" id="diagnosticsModalLabel"><i class="bi bi-activity me-2"></i><span x-text="t('运行诊断','Diagnostics')"></span></h5>
+          <div class="text-muted small diagnostics-modal__meta" x-text="diagnostics && diagnostics.timestamp ? t('更新时间：','Updated: ') + fmtDateTime(diagnostics.timestamp) : t('查看 runtime、goroutine pool 与转发器状态','View runtime, goroutine pool & forwarder status')"></div>
         </div>
         <div class="diagnostics-modal__actions d-flex align-items-center gap-2">
-	          <label class="form-check form-switch diagnostics-mode-toggle mb-0" :title="diagnosticsLocateOnly ? _t('点击规则项后仅定位并高亮规则行，不自动打开编辑弹窗。', 'Clicking a diagnostics rule will only locate and highlight the row without opening edit dialog.') : _t('点击规则项后将定位并打开对应规则编辑弹窗。', 'Clicking a diagnostics rule will locate and open the rule editor.')">
+	          <label class="form-check form-switch diagnostics-mode-toggle mb-0" :title="diagnosticsLocateOnly ? t('点击规则项后仅定位并高亮规则行，不自动打开编辑弹窗。', 'Clicking a diagnostics rule will only locate and highlight the row without opening edit dialog.') : t('点击规则项后将定位并打开对应规则编辑弹窗。', 'Clicking a diagnostics rule will locate and open the rule editor.')">
 	            <input class="form-check-input" type="checkbox" x-model="diagnosticsLocateOnly">
-	            <span class="form-check-label small" x-text="_t('仅定位', 'Locate only')"></span>
+	            <span class="form-check-label small" x-text="t('仅定位', 'Locate only')"></span>
 	          </label>
 	          <button type="button" class="btn btn-sm btn-outline-secondary btn-icon" @click="copyDiagnosticsJson()" :disabled="!diagnostics">
 	            <i class="bi bi-clipboard"></i>
-	            <span class="d-none d-sm-inline">复制 JSON</span>
+	            <span class="d-none d-sm-inline" x-text="t('复制 JSON','Copy JSON')"></span>
 	          </button>
 	          <button type="button" class="btn btn-sm btn-outline-secondary btn-icon" @click="downloadDiagnosticsJson()" :disabled="!diagnostics">
 	            <i class="bi bi-download"></i>
-	            <span class="d-none d-sm-inline">下载 JSON</span>
+	            <span class="d-none d-sm-inline" x-text="t('下载 JSON','Download')"></span>
 	          </button>
           <button type="button" class="btn btn-sm btn-outline-secondary btn-icon" @click.stop.prevent="loadDiagnostics()" :disabled="diagnosticsLoading">
             <span x-show="diagnosticsLoading" class="spinner-border spinner-border-sm"></span>
             <i class="bi bi-arrow-clockwise" x-show="!diagnosticsLoading"></i>
-            <span x-text="diagnosticsLoading ? '刷新中…' : '刷新' "></span>
+            <span x-text="diagnosticsLoading ? t('刷新中…','Refreshing…') : t('刷新','Refresh')"></span>
           </button>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
@@ -402,7 +406,7 @@
         <div class="alert alert-danger py-2 small mb-3" x-show="diagnosticsError" x-text="diagnosticsError"></div>
         <div x-show="diagnosticsLoading && !diagnostics" class="loading-spinner mb-3">
           <div class="loading-spinner__icon"></div>
-          <span class="loading-spinner__text">正在加载诊断信息…</span>
+          <span class="loading-spinner__text" x-text="t('正在加载诊断信息…','Loading diagnostics…')"></span>
         </div>
         <div x-show="diagnostics">
           <div class="row g-3 mb-4">
@@ -431,7 +435,7 @@
               <div class="stat-card">
                 <div class="stat-card__icon stat-card__icon--warning"><i class="bi bi-exclamation-triangle"></i></div>
                 <div class="stat-card__value" x-text="fmtNumber(diagnostics?.manager?.error_rules)"></div>
-                <div class="stat-card__label">错误规则</div>
+                <div class="stat-card__label" x-text="t('错误规则','Error Rules')"></div>
               </div>
             </div>
           </div>
@@ -446,9 +450,9 @@
                       <tbody>
                         <tr><th class="w-50">Heap Inuse</th><td x-text="fmtBytes(diagnostics?.runtime?.heap_inuse_bytes)"></td></tr>
                         <tr><th>Heap Objects</th><td x-text="fmtNumber(diagnostics?.runtime?.heap_objects)"></td></tr>
-                        <tr><th>GC 次数</th><td x-text="fmtNumber(diagnostics?.runtime?.num_gc)"></td></tr>
-                        <tr><th>GC 总暂停</th><td x-text="fmtDurationNs(diagnostics?.runtime?.pause_total_ns)"></td></tr>
-                        <tr><th>最近一次 GC</th><td x-text="fmtDateTime(diagnostics?.runtime?.last_gc)"></td></tr>
+                        <tr><th x-text="t('GC 次数','GC Count')"></th><td x-text="fmtNumber(diagnostics?.runtime?.num_gc)"></td></tr>
+                        <tr><th x-text="t('GC 总暂停','GC Pause Total')"></th><td x-text="fmtDurationNs(diagnostics?.runtime?.pause_total_ns)"></td></tr>
+                        <tr><th x-text="t('最近一次 GC','Last GC')"></th><td x-text="fmtDateTime(diagnostics?.runtime?.last_gc)"></td></tr>
                         <tr><th>Running / Runnable</th><td><span x-text="fmtNumber(diagnostics?.runtime?.goroutines_running)"></span> / <span x-text="fmtNumber(diagnostics?.runtime?.goroutines_runnable)"></span></td></tr>
                         <tr><th>Waiting / Syscall</th><td><span x-text="fmtNumber(diagnostics?.runtime?.goroutines_waiting)"></span> / <span x-text="fmtNumber(diagnostics?.runtime?.goroutines_syscall)"></span></td></tr>
                         <tr><th>Threads Live</th><td x-text="fmtNumber(diagnostics?.runtime?.threads_live)"></td></tr>
@@ -465,13 +469,13 @@
                   <div class="table-responsive">
                     <table class="table table-sm mb-0 align-middle">
                       <tbody>
-                        <tr><th class="w-50">缓存规则</th><td x-text="fmtNumber(diagnostics?.manager?.cached_rules)"></td></tr>
-                        <tr><th>活跃 Forwarder</th><td x-text="fmtNumber(diagnostics?.manager?.active_forwarders)"></td></tr>
-                        <tr><th>规则状态</th><td><span class="text-success" x-text="fmtNumber(diagnostics?.manager?.rule_health?.active)"></span> / <span class="text-secondary" x-text="fmtNumber(diagnostics?.manager?.rule_health?.inactive)"></span> / <span class="text-danger" x-text="fmtNumber(diagnostics?.manager?.rule_health?.error)"></span></td></tr>
-                        <tr><th>总规则数</th><td x-text="fmtNumber(diagnostics?.manager?.stats?.total_rules)"></td></tr>
-                        <tr><th>总连接数</th><td x-text="fmtNumber(diagnostics?.manager?.stats?.total_conns)"></td></tr>
-                        <tr><th>总流入</th><td x-text="fmtBytes(diagnostics?.manager?.stats?.total_bytes_in)"></td></tr>
-                        <tr><th>总流出</th><td x-text="fmtBytes(diagnostics?.manager?.stats?.total_bytes_out)"></td></tr>
+                        <tr><th class="w-50" x-text="t('缓存规则','Cached Rules')"></th><td x-text="fmtNumber(diagnostics?.manager?.cached_rules)"></td></tr>
+                        <tr><th x-text="t('活跃 Forwarder','Active Forwarders')"></th><td x-text="fmtNumber(diagnostics?.manager?.active_forwarders)"></td></tr>
+                        <tr><th x-text="t('规则状态','Rule Status')"></th><td><span class="text-success" x-text="fmtNumber(diagnostics?.manager?.rule_health?.active)"></span> / <span class="text-secondary" x-text="fmtNumber(diagnostics?.manager?.rule_health?.inactive)"></span> / <span class="text-danger" x-text="fmtNumber(diagnostics?.manager?.rule_health?.error)"></span></td></tr>
+                        <tr><th x-text="t('总规则数','Total Rules')"></th><td x-text="fmtNumber(diagnostics?.manager?.stats?.total_rules)"></td></tr>
+                        <tr><th x-text="t('总连接数','Total Conns')"></th><td x-text="fmtNumber(diagnostics?.manager?.stats?.total_conns)"></td></tr>
+                        <tr><th x-text="t('总流入','Inbound')"></th><td x-text="fmtBytes(diagnostics?.manager?.stats?.total_bytes_in)"></td></tr>
+                        <tr><th x-text="t('总流出','Outbound')"></th><td x-text="fmtBytes(diagnostics?.manager?.stats?.total_bytes_out)"></td></tr>
                         <tr><th>Pool Free</th><td x-text="fmtNumber(diagnostics?.pool?.free)"></td></tr>
                       </tbody>
                     </table>
@@ -482,19 +486,19 @@
           </div>
 
           <div class="card mb-4">
-            <div class="card-header fw-semibold">协议统计</div>
+            <div class="card-header fw-semibold" x-text="t('协议统计','Protocol Stats')"></div>
             <div class="card-body p-0">
               <div class="table-responsive">
                 <table class="table table-sm mb-0 align-middle">
                   <thead>
                     <tr>
-                      <th>协议</th>
-                      <th>规则数</th>
-                      <th>活跃 Forwarder</th>
-                      <th>流入</th>
-                      <th>流出</th>
-                      <th>活跃连接</th>
-                      <th>总连接</th>
+                      <th x-text="t('协议','Proto')"></th>
+                      <th x-text="t('规则数','Rules')"></th>
+                      <th x-text="t('活跃 Forwarder','Active Fwd')"></th>
+                      <th x-text="t('流入','In')"></th>
+                      <th x-text="t('流出','Out')"></th>
+                      <th x-text="t('活跃连接','Active')"></th>
+                      <th x-text="t('总连接','Total')"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -523,26 +527,26 @@
           </div>
 
 	          <div class="card mb-4">
-	            <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-	              <span>热点规则</span>
-	              <span class="text-muted small">按活跃连接 / 流量 / 总连接综合排序</span>
+	            <div class="card-header fw-semibold d-flex justify-content-between align-items-center flex-wrap">
+	              <span x-text="t('热点规则','Hot Rules')"></span>
+	              <span class="text-muted small" x-text="t('按活跃连接 / 流量 / 总连接综合排序','Ranked by active conns / traffic / total conns')"></span>
 	            </div>
 	            <div class="card-body p-0">
 	              <div class="empty-state py-4" x-show="!diagnostics?.manager?.hot_rules || diagnostics.manager.hot_rules.length === 0">
 	                <div class="empty-state__icon"><i class="bi bi-bar-chart"></i></div>
-	                <div class="empty-state__title">暂无热点规则数据</div>
+	                <div class="empty-state__title" x-text="t('暂无热点规则数据','No hot rules data')"></div>
 	              </div>
 	              <div class="table-responsive" x-show="diagnostics?.manager?.hot_rules && diagnostics.manager.hot_rules.length > 0">
 	                <table class="table table-sm mb-0 align-middle">
 	                  <thead>
 	                    <tr>
-	                      <th>规则</th>
-	                      <th>状态</th>
-	                      <th>监听</th>
-	                      <th>总流量</th>
-	                      <th>活跃连接</th>
-	                      <th>总连接</th>
-		                      <th>操作</th>
+	                      <th x-text="t('规则','Rule')"></th>
+	                      <th x-text="t('状态','Status')"></th>
+	                      <th x-text="t('监听','Listen')"></th>
+	                      <th x-text="t('总流量','Traffic')"></th>
+	                      <th x-text="t('活跃连接','Active')"></th>
+	                      <th x-text="t('总连接','Total')"></th>
+		                  <th x-text="t('操作','Actions')"></th>
 	                    </tr>
 	                  </thead>
 	                  <tbody>
@@ -557,7 +561,7 @@
 	                        <td><span x-text="fmtBytes(item.total_bytes)"></span><div class="text-muted small">↑ <span x-text="fmtBytes(item.bytes_in)"></span> / ↓ <span x-text="fmtBytes(item.bytes_out)"></span></div></td>
 	                        <td x-text="fmtNumber(item.active_conns)"></td>
 	                        <td x-text="fmtNumber(item.total_conns)"></td>
-		                        <td><button type="button" class="btn btn-xs btn-outline-primary" @click="inspectRuleFromDiagnostics(item.id, { locateOnly: true })">定位</button></td>
+		                        <td><button type="button" class="btn btn-xs btn-outline-primary" @click="inspectRuleFromDiagnostics(item.id, { locateOnly: true })" x-text="t('定位','Locate')"></button></td>
 	                      </tr>
 	                    </template>
 	                  </tbody>
@@ -572,7 +576,7 @@
 		                <div class="card-header fw-semibold">Top Active Rules</div>
 		                <div class="card-body p-0">
 		                  <div class="empty-state py-4" x-show="!diagnostics?.manager?.top_active_rules || diagnostics.manager.top_active_rules.length === 0">
-		                    <div class="empty-state__title">暂无活跃连接热点</div>
+		                    <div class="empty-state__title" x-text="t('暂无活跃连接热点','No active connection hotspots')"></div>
 		                  </div>
 		                  <div class="list-group list-group-flush" x-show="diagnostics?.manager?.top_active_rules && diagnostics.manager.top_active_rules.length > 0">
 		                    <template x-for="item in (diagnostics?.manager?.top_active_rules || [])" :key="'active-' + item.id">
@@ -584,7 +588,7 @@
 		                          </div>
 		                          <div class="text-end">
 		                            <div class="diagnostics-metric" x-text="fmtNumber(item.active_conns)"></div>
-		                            <div class="text-muted small">活跃连接</div>
+		                            <div class="text-muted small" x-text="t('活跃连接','Active Conns')"></div>
 		                          </div>
 		                        </div>
 		                      </div>
@@ -598,7 +602,7 @@
 		                <div class="card-header fw-semibold">Top Traffic Rules</div>
 		                <div class="card-body p-0">
 		                  <div class="empty-state py-4" x-show="!diagnostics?.manager?.top_traffic_rules || diagnostics.manager.top_traffic_rules.length === 0">
-		                    <div class="empty-state__title">暂无流量热点</div>
+		                    <div class="empty-state__title" x-text="t('暂无流量热点','No traffic hotspots')"></div>
 		                  </div>
 		                  <div class="list-group list-group-flush" x-show="diagnostics?.manager?.top_traffic_rules && diagnostics.manager.top_traffic_rules.length > 0">
 		                    <template x-for="item in (diagnostics?.manager?.top_traffic_rules || [])" :key="'traffic-' + item.id">
@@ -610,7 +614,7 @@
 		                          </div>
 		                          <div class="text-end">
 		                            <div class="diagnostics-metric" x-text="fmtBytes(item.total_bytes)"></div>
-		                            <div class="text-muted small">总流量</div>
+		                            <div class="text-muted small" x-text="t('总流量','Total Traffic')"></div>
 		                          </div>
 		                        </div>
 		                      </div>
@@ -624,7 +628,7 @@
 		                <div class="card-header fw-semibold">Top Error Rules</div>
 		                <div class="card-body p-0">
 		                  <div class="empty-state py-4" x-show="!diagnostics?.manager?.top_error_rules || diagnostics.manager.top_error_rules.length === 0">
-		                    <div class="empty-state__title">暂无异常热点</div>
+		                    <div class="empty-state__title" x-text="t('暂无异常热点','No error hotspots')"></div>
 		                  </div>
 		                  <div class="list-group list-group-flush" x-show="diagnostics?.manager?.top_error_rules && diagnostics.manager.top_error_rules.length > 0">
 		                    <template x-for="item in (diagnostics?.manager?.top_error_rules || [])" :key="'error-' + item.id">
@@ -637,7 +641,7 @@
 		                          </div>
 		                          <div class="text-end">
 		                            <div class="diagnostics-metric" x-text="fmtNumber(item.error_count)"></div>
-		                            <div class="text-muted small">错误次数</div>
+		                            <div class="text-muted small" x-text="t('错误次数','Error Count')"></div>
 		                          </div>
 		                        </div>
 		                      </div>
@@ -649,11 +653,11 @@
 		          </div>
 
           <div class="card">
-            <div class="card-header fw-semibold">错误规则摘要</div>
+            <div class="card-header fw-semibold" x-text="t('错误规则摘要','Error Rule Summary')"></div>
             <div class="card-body p-0">
               <div class="empty-state py-4" x-show="!diagnostics?.manager?.errors || diagnostics.manager.errors.length === 0">
                 <div class="empty-state__icon"><i class="bi bi-check-circle"></i></div>
-                <div class="empty-state__title">当前没有错误规则</div>
+                <div class="empty-state__title" x-text="t('当前没有错误规则','No error rules')"></div>
               </div>
               <div class="list-group list-group-flush" x-show="diagnostics?.manager?.errors && diagnostics.manager.errors.length > 0">
 	                <template x-for="item in (diagnostics?.manager?.errors || [])" :key="item.id">
@@ -661,14 +665,14 @@
                     <div class="d-flex justify-content-between gap-3 flex-wrap">
                       <div>
 	                        <button type="button" class="btn btn-link btn-sm p-0 diagnostics-link fw-semibold" @click="inspectRuleFromDiagnostics(item.id)" x-text="item.name"></button>
-                        <div class="text-muted small"><span x-text="(item.protocol || 'tcp').toUpperCase()"></span> · <span x-text="(item.listen_addr || '0.0.0.0') + ':' + item.listen_port"></span></div>
+                            <div class="text-muted small"><span x-text="(item.protocol || 'tcp').toUpperCase()"></span> · <span x-text="(item.listen_addr || '0.0.0.0') + ':' + item.listen_port"></span></div>
 	                        <div class="text-muted small" x-text="summaryTimeMeta(item)"></div>
                       </div>
 	                      <div class="text-end diagnostics-actions-wrap">
 	                        <div class="text-danger small mb-2" style="max-width:42rem" x-text="item.error"></div>
 	                        <div class="d-flex justify-content-end gap-2 align-items-center flex-wrap">
-	                          <span class="badge text-bg-danger rounded-pill" x-text="'错误次数 ' + fmtNumber(item.error_count)"></span>
-	                          <button type="button" class="btn btn-xs btn-outline-primary" @click="inspectRuleFromDiagnostics(item.id, { locateOnly: true })">定位</button>
+	                          <span class="badge text-bg-danger rounded-pill" x-text="t('错误次数 ','Errors: ') + fmtNumber(item.error_count)"></span>
+	                          <button type="button" class="btn btn-xs btn-outline-primary" @click="inspectRuleFromDiagnostics(item.id, { locateOnly: true })" x-text="t('定位','Locate')"></button>
 	                        </div>
 	                      </div>
                     </div>
@@ -693,8 +697,8 @@
         <div class="confirm-dialog__icon confirm-dialog__icon--danger"><i class="bi bi-exclamation-triangle-fill"></i></div>
         <p class="confirm-dialog__message"></p>
         <div class="d-flex gap-2 justify-content-center mt-3">
-          <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-          <button class="btn btn-danger" data-confirm-ok>确认删除</button>
+          <button class="btn btn-secondary" data-bs-dismiss="modal" id="confirm-cancel-btn">取消</button>
+          <button class="btn btn-danger" data-confirm-ok id="confirm-ok-btn">确认删除</button>
         </div>
       </div>
     </div>
@@ -716,7 +720,11 @@
 'use strict'
 
 // 国际化辅助 | i18n helper
-const _isEn = () => document.documentElement.lang === 'en'
+let _currentLang = (() => {
+  try { return localStorage.getItem('app_lang') || 'zh-CN' } catch { return 'zh-CN' }
+})()
+document.documentElement.lang = _currentLang
+const _isEn = () => _currentLang === 'en'
 const _t = (zh, en) => _isEn() ? en : zh
 
 // Spin animation for refresh button
@@ -731,6 +739,7 @@ function portForwardApp() {
     search: '',
     loading: false,
     isDark: document.documentElement.getAttribute('data-bs-theme') === 'dark',
+    lang: _currentLang,
 
     form: {},
     formError: '',
@@ -1143,6 +1152,16 @@ function portForwardApp() {
       }
     },
 
+    toggleLang() {
+      const next = this.lang === 'zh-CN' ? 'en' : 'zh-CN'
+      this.lang = next
+      _currentLang = next
+      document.documentElement.lang = next
+      try { localStorage.setItem('app_lang', next) } catch {}
+    },
+
+    t(zh, en) { return this.lang === 'en' ? en : zh },
+
     toggleTheme() {
       const html = document.documentElement
       const current = html.getAttribute('data-bs-theme')
@@ -1184,10 +1203,10 @@ function portForwardApp() {
 
 	    summaryTimeMeta(item) {
 	      const parts = []
-	      if (item?.last_error_at) parts.push('最近错误 ' + this.fmtDateTime(item.last_error_at))
-	      if (item?.last_status_change_at) parts.push('状态变化 ' + this.fmtDateTime(item.last_status_change_at))
-	      if (item?.updated_at) parts.push('配置更新 ' + this.fmtDateTime(item.updated_at))
-	      return parts.join(' · ') || '暂无时间线'
+	      if (item?.last_error_at) parts.push(this.t('最近错误 ','Last error ') + this.fmtDateTime(item.last_error_at))
+	      if (item?.last_status_change_at) parts.push(this.t('状态变化 ','Status changed ') + this.fmtDateTime(item.last_status_change_at))
+	      if (item?.updated_at) parts.push(this.t('配置更新 ','Config updated ') + this.fmtDateTime(item.updated_at))
+	      return parts.join(' · ') || this.t('暂无时间线','No timeline')
 	    },
 
 	    fmtDurationNs(ns) {

@@ -2552,3 +2552,81 @@ input[type="radio"]:active {
     margin-bottom: 8px;
     line-height: 1.4;
 }
+
+/* ========================================
+   i18n 双语布局适配 | Bilingual layout adaptations
+   ======================================== */
+
+/* 表格表头不换行，防止英文列名挤压 | Prevent table header wrapping */
+.table > thead > tr > th {
+    white-space: nowrap;
+}
+
+/* 统计卡片标签允许换行但限制高度 | Stat card labels allow wrap with min height */
+.stat-card__label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Header badges 不换行 | Header badges no-wrap */
+.header__actions .badge {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Header actions 允许换行 | Header actions allow wrapping */
+.header__actions {
+    flex-wrap: wrap;
+}
+
+/* 按钮文字不换行 | Button text no-wrap */
+.btn-icon span,
+.btn > span {
+    white-space: nowrap;
+}
+
+/* 诊断弹窗 header actions 允许换行 | Diagnostics modal header actions allow wrapping */
+.diagnostics-modal__actions {
+    flex-wrap: wrap;
+}
+
+/* 诊断卡片 header 允许换行 | Diagnostics card header allow wrapping */
+.card-header.d-flex {
+    gap: 0.5rem;
+}
+
+/* 侧边栏链接文字不换行 | Sidebar link text no-wrap */
+.sidebar__link-text {
+    white-space: nowrap;
+}
+
+/* 表单标签不换行 | Form labels no-wrap */
+.form-label {
+    white-space: nowrap;
+}
+
+/* 小屏幕下 header breadcrumb 允许截断 | Truncate header breadcrumb on small screens */
+@media (max-width: 767.98px) {
+    .header__breadcrumb {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 120px;
+    }
+
+    /* 小屏幕下隐藏部分 header badges | Hide some header badges on small screens */
+    .header__actions .badge {
+        display: none;
+    }
+
+    /* 诊断弹窗按钮文字隐藏，只显示图标 | Hide diagnostics button text on small screens */
+    .diagnostics-modal__actions .d-none.d-sm-inline {
+        display: none !important;
+    }
+}
+
+/* 确保 form-check-label 不被挤压 | Ensure form-check-label is not squeezed */
+.form-check-label {
+    word-break: keep-all;
+}

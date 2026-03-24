@@ -326,8 +326,12 @@ const showConfirm = (message, onOk, level = 'danger') => {
     const msgEl = modalEl.querySelector('.confirm-dialog__message')
     const iconEl = modalEl.querySelector('.confirm-dialog__icon')
     const okBtn = modalEl.querySelector('[data-confirm-ok]')
+    const cancelBtn = modalEl.querySelector('#confirm-cancel-btn')
 
     if (msgEl) msgEl.textContent = message
+    // 更新按钮文字为当前语言 | Update button text to current language
+    if (cancelBtn) cancelBtn.textContent = typeof _t === 'function' ? _t('取消', 'Cancel') : '取消'
+    if (okBtn) okBtn.textContent = typeof _t === 'function' ? _t('确认删除', 'Confirm Delete') : '确认删除'
     if (iconEl) {
         iconEl.className = `confirm-dialog__icon confirm-dialog__icon--${level} mb-3`
     }
