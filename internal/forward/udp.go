@@ -15,6 +15,25 @@ import (
 	"go.uber.org/zap"
 )
 
+// udpAddrKey 是 UDP 地址的固定大小可比较 key，避免每包调用 String() 产生字符串分配。
+// udpAddrKey is a fixed-size comparable key for UDP addresses, avoiding per-packet
+// string allocation from String().
+type udpAddrKey struct {
+	ip   [net.IPv6len]byte // 16 bytes，同时容纳 IPv4 和 IPv6 | fits both IPv4 and IPv6
+	port uint16
+	len  uint8 // IP 原始长度（4 或 16），确保不同表示不会碰撞 | raw IP length (4 or 16)
+}
+
+// makeUDPAddrKey 从 *net.UDPAddr 构造零分配的 map key。
+// makeUDPAddrKey constructs a zero-allocation map key from *net.UDPAddr.
+func makeUDPAddrKey(addr *net.UDPAddr) udpAddrKey {
+	var k udpAddrKey
+	k.port = uint16(addr.Port)
+	k.len = uint8(len(addr.IP))
+	copy(k.ip[:], addr.IP)
+	return k
+}
+
 // udpSession tracks an upstream UDP connection for a specific client address.
 type udpSession struct {
 	upstream *net.UDPConn
@@ -26,7 +45,7 @@ type UDPForwarder struct {
 	rule       *models.ForwardRule
 	conn       *net.UDPConn
 	targetAddr *net.UDPAddr
-	sessions   map[string]*udpSession
+	sessions   map[udpAddrKey]*udpSession
 	stopCh     chan struct{}
 	wg         sync.WaitGroup
 	timeout    time.Duration
@@ -45,7 +64,7 @@ func newUDPForwarder(rule *models.ForwardRule, timeoutSec int) *UDPForwarder {
 	return &UDPForwarder{
 		rule:     rule,
 		timeout:  time.Duration(timeoutSec) * time.Second,
-		sessions: make(map[string]*udpSession),
+		sessions: make(map[udpAddrKey]*udpSession),
 		stopCh:   make(chan struct{}),
 	}
 }
@@ -184,7 +203,7 @@ func (f *UDPForwarder) Stats() (bytesIn, bytesOut, active, total int64) {
 }
 
 func (f *UDPForwarder) getOrCreateSession(srcAddr *net.UDPAddr) *udpSession {
-	key := srcAddr.String()
+	key := makeUDPAddrKey(srcAddr) // 零分配 | zero allocation
 	now := time.Now()
 
 	f.mu.Lock()

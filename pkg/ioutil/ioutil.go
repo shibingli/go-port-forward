@@ -18,6 +18,7 @@ import (
 	"errors"
 	"go-port-forward/pkg/pool"
 	"io"
+	"sync/atomic"
 	"time"
 )
 
@@ -36,9 +37,10 @@ import (
 //   - written: 复制的字节数
 //   - err: 复制过程中的错误
 func CopyWithBuffer(dst io.Writer, src io.Reader) (written int64, err error) {
-	// 从对象池获取缓冲区
-	buffer := pool.BufferPool.Get().([]byte)
-	defer pool.BufferPool.Put(buffer) // 使用完毕后归还到池中
+	// 使用统一的 GetBuffer/PutBuffer API，确保归还时重置 slice 长度
+	// Use unified GetBuffer/PutBuffer API to ensure slice length is reset on return
+	buffer := pool.GetBuffer(pool.DefaultBufferSize)
+	defer pool.PutBuffer(buffer)
 
 	return io.CopyBuffer(dst, src, buffer)
 }
@@ -67,25 +69,30 @@ func CopyWithTimeout(ctx context.Context, dst io.Writer, src io.Reader, timeout 
 		defer cancel()
 	}
 
-	// 使用channel进行goroutine间通信
-	done := make(chan struct{})
-	var copyErr error
-	var copyWritten int64
+	// 使用 channel 传递结果，避免共享变量的 data race。
+	// Use a channel to pass results, avoiding data race on shared variables.
+	type result struct {
+		written int64
+		err     error
+	}
+	done := make(chan result, 1)
 
 	// 在协程池中执行复制操作
 	if err := pool.Submit(func() {
-		defer close(done)
-		copyWritten, copyErr = CopyWithBuffer(dst, src)
+		w, e := CopyWithBuffer(dst, src)
+		done <- result{w, e}
 	}); err != nil {
 		return 0, err
 	}
 
 	// 等待复制完成或上下文取消
 	select {
-	case <-done:
-		return copyWritten, copyErr
+	case r := <-done:
+		return r.written, r.err
 	case <-ctx.Done():
-		return copyWritten, ctx.Err()
+		// 超时/取消时，拷贝协程可能仍在运行，不读取共享变量以避免 data race。
+		// On timeout/cancel, copy goroutine may still be running; avoid reading shared vars.
+		return 0, ctx.Err()
 	}
 }
 
@@ -110,9 +117,9 @@ func CopyWithTimeout(ctx context.Context, dst io.Writer, src io.Reader, timeout 
 //   - written: 复制的字节数
 //   - err: 复制过程中的错误
 func CopyWithProgress(dst io.Writer, src io.Reader, progressCallback func(written int64)) (written int64, err error) {
-	// 从对象池获取缓冲区
-	buffer := pool.BufferPool.Get().([]byte)
-	defer pool.BufferPool.Put(buffer)
+	// 使用统一的 GetBuffer/PutBuffer API | Use unified GetBuffer/PutBuffer API
+	buffer := pool.GetBuffer(pool.DefaultBufferSize)
+	defer pool.PutBuffer(buffer)
 
 	var totalWritten int64
 	for {
@@ -163,6 +170,11 @@ func CopyWithProgress(dst io.Writer, src io.Reader, progressCallback func(writte
 }
 
 // CopyWithProgressAndTimeout 带进度回调和超时的复制操作 | Copy with progress callback and timeout
+//
+// 注意：progressCallback 在拷贝协程中调用，超时后协程不会立即终止，
+// 回调中应使用 atomic 或其他并发安全方式读取进度值。
+// Note: progressCallback is invoked in the copy goroutine; the goroutine does not
+// stop immediately on timeout. Use atomic or other concurrency-safe reads in the callback.
 func CopyWithProgressAndTimeout(ctx context.Context, dst io.Writer, src io.Reader,
 	progressCallback func(written int64), timeout time.Duration) (written int64, err error) {
 
@@ -172,31 +184,64 @@ func CopyWithProgressAndTimeout(ctx context.Context, dst io.Writer, src io.Reade
 		defer cancel()
 	}
 
-	done := make(chan struct{})
-	var copyErr error
-	var copyWritten int64
+	// 使用 atomic 避免 data race：超时时拷贝协程可能仍在更新 written。
+	// Use atomic to avoid data race: copy goroutine may still update written after timeout.
+	var atomicWritten atomic.Int64
+
+	type result struct {
+		written int64
+		err     error
+	}
+	done := make(chan result, 1)
+
+	// 包装 progressCallback，使其同时更新 atomic 计数器
+	wrappedCallback := func(w int64) {
+		atomicWritten.Store(w)
+		if progressCallback != nil {
+			progressCallback(w)
+		}
+	}
 
 	if err := pool.Submit(func() {
-		defer close(done)
-		copyWritten, copyErr = CopyWithProgress(dst, src, progressCallback)
+		w, e := CopyWithProgress(dst, src, wrappedCallback)
+		done <- result{w, e}
 	}); err != nil {
 		return 0, err
 	}
 
 	select {
-	case <-done:
-		return copyWritten, copyErr
+	case r := <-done:
+		return r.written, r.err
 	case <-ctx.Done():
-		return copyWritten, ctx.Err()
+		// 返回最后已知的安全进度值 | Return last known safe progress value
+		return atomicWritten.Load(), ctx.Err()
 	}
 }
 
 // CopyN 复制指定字节数 | Copy specified number of bytes
+//
+// 使用池化缓冲区 + io.LimitReader 替代 io.CopyN，避免标准库内部重复分配缓冲区。
+// Uses pooled buffer + io.LimitReader instead of io.CopyN to avoid redundant
+// buffer allocation inside the standard library.
+//
+// 返回值语义与 io.CopyN 完全一致：
+// Return value semantics are identical to io.CopyN:
+//   - written == n: err = nil
+//   - written < n && 底层无错误: err = io.EOF
+//   - 底层有错误: 返回底层错误
 func CopyN(dst io.Writer, src io.Reader, n int64) (written int64, err error) {
 	buffer := pool.GetBuffer(int(min(n, int64(pool.MediumBufferSize))))
 	defer pool.PutBuffer(buffer)
 
-	return io.CopyN(dst, src, n)
+	written, err = io.CopyBuffer(dst, io.LimitReader(src, n), buffer)
+	if written == n {
+		return n, nil
+	}
+	if written < n && err == nil {
+		// src 提前结束，一定是遇到了 EOF | src stopped early; must have been EOF.
+		err = io.EOF
+	}
+	return
 }
 
 // CopyNWithProgress 复制指定字节数并提供进度回调 | Copy specified bytes with progress callback

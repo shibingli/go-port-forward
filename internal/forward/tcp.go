@@ -176,6 +176,12 @@ type countingWriter struct {
 	counter *atomic.Int64
 }
 
+// countingWriterPool 复用 countingWriter，避免每次连接的双向拷贝各分配一个堆对象。
+// countingWriterPool reuses countingWriter to avoid heap allocation per bidirectional copy.
+var countingWriterPool = sync.Pool{
+	New: func() any { return &countingWriter{} },
+}
+
 func (cw *countingWriter) Write(p []byte) (int, error) {
 	n, err := cw.w.Write(p)
 	if n > 0 {
@@ -184,12 +190,29 @@ func (cw *countingWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
+// reset 清除引用，防止池中对象持有已关闭连接的引用 | Clear references to prevent pooled objects from holding closed connections.
+func (cw *countingWriter) reset() {
+	cw.w = nil
+	cw.counter = nil
+}
+
 // copyBufCounting copies from src to dst using a pooled buffer, updating counter on every write.
+// countingWriter 从 sync.Pool 获取，拷贝完成后归还，所有计量在归还前已完成。
+// countingWriter is obtained from sync.Pool and returned after copy; all counting is done before return.
 func (f *TCPForwarder) copyBufCounting(dst io.Writer, src io.Reader, counter *atomic.Int64) {
 	buf := pool.GetBuffer(f.bufferSize)
 	defer pool.PutBuffer(buf)
-	cw := &countingWriter{w: dst, counter: counter}
+
+	cw := countingWriterPool.Get().(*countingWriter)
+	cw.w = dst
+	cw.counter = counter
+
 	_, _ = io.CopyBuffer(cw, src, buf)
+
+	// io.CopyBuffer 是同步调用，到达此处时所有 Write（含计量）已完成，可以安全归还。
+	// io.CopyBuffer is synchronous; all Writes (including counting) are done here, safe to return.
+	cw.reset()
+	countingWriterPool.Put(cw)
 }
 
 func (f *TCPForwarder) Stats() (bytesIn, bytesOut, active, total int64) {
