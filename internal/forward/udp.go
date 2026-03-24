@@ -22,6 +22,7 @@ type udpAddrKey struct {
 	ip   [net.IPv6len]byte // 16 bytes，同时容纳 IPv4 和 IPv6 | fits both IPv4 and IPv6
 	port uint16
 	len  uint8 // IP 原始长度（4 或 16），确保不同表示不会碰撞 | raw IP length (4 or 16)
+	zone string
 }
 
 // makeUDPAddrKey 从 *net.UDPAddr 构造零分配的 map key。
@@ -30,6 +31,7 @@ func makeUDPAddrKey(addr *net.UDPAddr) udpAddrKey {
 	var k udpAddrKey
 	k.port = uint16(addr.Port)
 	k.len = uint8(len(addr.IP))
+	k.zone = addr.Zone
 	copy(k.ip[:], addr.IP)
 	return k
 }

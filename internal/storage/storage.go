@@ -54,6 +54,7 @@ func (s *boltStore) ListRules() ([]*models.ForwardRule, error) {
 			if err := json.Unmarshal(v, &r); err != nil {
 				return err
 			}
+			scrubRuntimeFields(&r)
 			rules = append(rules, &r)
 			return nil
 		})
@@ -68,7 +69,11 @@ func (s *boltStore) GetRule(id string) (*models.ForwardRule, error) {
 		if v == nil {
 			return fmt.Errorf("%w: %s", ErrRuleNotFound, id)
 		}
-		return json.Unmarshal(v, &rule)
+		if err := json.Unmarshal(v, &rule); err != nil {
+			return err
+		}
+		scrubRuntimeFields(&rule)
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -78,7 +83,9 @@ func (s *boltStore) GetRule(id string) (*models.ForwardRule, error) {
 
 func (s *boltStore) SaveRule(rule *models.ForwardRule) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		data, err := json.Marshal(rule)
+		persisted := *rule
+		scrubRuntimeFields(&persisted)
+		data, err := json.Marshal(&persisted)
 		if err != nil {
 			return err
 		}
@@ -94,6 +101,14 @@ func (s *boltStore) DeleteRule(id string) error {
 		}
 		return b.Delete([]byte(id))
 	})
+}
+
+func scrubRuntimeFields(rule *models.ForwardRule) {
+	if rule == nil {
+		return
+	}
+	rule.Status = ""
+	rule.ErrorMsg = ""
 }
 
 func (s *boltStore) Close() error { return s.db.Close() }

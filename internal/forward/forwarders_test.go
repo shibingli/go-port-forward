@@ -152,6 +152,24 @@ func TestUDPForwarderCleanupExpiresSessions(t *testing.T) {
 	})
 }
 
+func TestMakeUDPAddrKeyIncludesZone(t *testing.T) {
+	baseIP := net.ParseIP("fe80::1")
+	if baseIP == nil {
+		t.Fatal("parse ipv6 failed")
+	}
+
+	keyA := makeUDPAddrKey(&net.UDPAddr{IP: baseIP, Port: 5353, Zone: "eth0"})
+	keyB := makeUDPAddrKey(&net.UDPAddr{IP: baseIP, Port: 5353, Zone: "eth1"})
+	keyC := makeUDPAddrKey(&net.UDPAddr{IP: baseIP, Port: 5353, Zone: "eth0"})
+
+	if keyA == keyB {
+		t.Fatal("different zones must produce different session keys")
+	}
+	if keyA != keyC {
+		t.Fatal("same zone must produce same session key")
+	}
+}
+
 func udpEchoLoop(conn *net.UDPConn, stop <-chan struct{}) {
 	buf := make([]byte, 2048)
 	for {

@@ -119,6 +119,45 @@ func TestManagerCachesReadPathsInMemory(t *testing.T) {
 	}
 }
 
+func TestManagerClearsOnlyTransientRuntimeFieldsForInactiveRule(t *testing.T) {
+	store := newCountingStore(&models.ForwardRule{
+		ID:          "rule-1",
+		Name:        "stale-runtime",
+		ListenAddr:  "127.0.0.1",
+		ListenPort:  18080,
+		Protocol:    models.ProtocolTCP,
+		TargetAddr:  "127.0.0.1",
+		TargetPort:  8080,
+		Enabled:     false,
+		Status:      models.StatusActive,
+		ErrorMsg:    "stale",
+		BytesIn:     100,
+		BytesOut:    200,
+		ActiveConns: 3,
+		TotalConns:  4,
+	})
+	mgr, err := NewManager(store, config.ForwardConfig{DialTimeout: 1, UDPTimeout: 30, BufferSize: 4096, PoolSize: 8})
+	if err != nil {
+		t.Fatalf("new manager: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	rule, err := mgr.GetRule("rule-1")
+	if err != nil {
+		t.Fatalf("GetRule: %v", err)
+	}
+
+	if rule.Status != models.StatusInactive {
+		t.Fatalf("status = %q, want %q", rule.Status, models.StatusInactive)
+	}
+	if rule.ErrorMsg != "" {
+		t.Fatalf("error message should be cleared: %+v", rule)
+	}
+	if rule.BytesIn != 100 || rule.BytesOut != 200 || rule.ActiveConns != 3 || rule.TotalConns != 4 {
+		t.Fatalf("historical traffic fields should be preserved: %+v", rule)
+	}
+}
+
 func TestAddRuleSerializesConflictingConcurrentCreates(t *testing.T) {
 	store := newCountingStore()
 	mgr, err := NewManager(store, config.ForwardConfig{DialTimeout: 1, UDPTimeout: 30, BufferSize: 4096, PoolSize: 8})

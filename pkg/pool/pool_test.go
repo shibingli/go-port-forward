@@ -225,3 +225,37 @@ func TestReleaseWithoutInit(t *testing.T) {
 	// 应该不会panic | Should not panic
 	Release()
 }
+
+func TestReleaseResetsPoolsToNil(t *testing.T) {
+	Release()
+	ReleaseNonBlocking()
+
+	if err := InitGoroutinePool(8, true); err != nil {
+		t.Fatalf("InitGoroutinePool() error = %v", err)
+	}
+	if err := InitNonBlockingPool(8, 0); err != nil {
+		t.Fatalf("InitNonBlockingPool() error = %v", err)
+	}
+
+	Release()
+	ReleaseNonBlocking()
+
+	if goroutinePool != nil {
+		t.Fatal("goroutinePool should be nil after Release")
+	}
+	if nonBlockingPool != nil {
+		t.Fatal("nonBlockingPool should be nil after ReleaseNonBlocking")
+	}
+}
+
+func TestInitPoolRejectsInvalidSize(t *testing.T) {
+	Release()
+	ReleaseNonBlocking()
+
+	if err := InitGoroutinePool(0, true); err == nil {
+		t.Fatal("InitGoroutinePool(0) should fail")
+	}
+	if err := InitNonBlockingPool(0, 0); err == nil {
+		t.Fatal("InitNonBlockingPool(0) should fail")
+	}
+}

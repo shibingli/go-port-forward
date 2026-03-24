@@ -52,7 +52,9 @@ func NewManager(store storage.Store, cfg config.ForwardConfig) (*Manager, error)
 	if poolSize <= 0 {
 		poolSize = 10000
 	}
-	_ = pool.InitGoroutinePool(poolSize, true)
+	if err := pool.InitGoroutinePool(poolSize, true); err != nil {
+		return nil, err
+	}
 
 	m := &Manager{
 		store:           store,

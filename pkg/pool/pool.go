@@ -3,6 +3,7 @@
 package pool
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/panjf2000/ants/v2"
@@ -23,10 +24,12 @@ const (
 var (
 	// goroutinePool 协程池实例（阻塞模式，池满时等待）| Goroutine pool instance (blocking mode, waits when full)
 	goroutinePool *ants.Pool
+	goroutineMu   sync.RWMutex
 
 	// nonBlockingPool 非阻塞协程池实例（池满时立即返回 ErrPoolOverload）
 	// Non-blocking goroutine pool instance (returns ErrPoolOverload immediately when full)
 	nonBlockingPool *ants.Pool
+	nonBlockingMu   sync.RWMutex
 
 	// BufferPool 字节切片对象池 | Byte slice object pool
 	BufferPool = sync.Pool{
@@ -57,14 +60,27 @@ var (
 // 池满时 Submit 会阻塞等待，适合通用异步任务。
 // Submit blocks when pool is full; suitable for general async tasks.
 func InitGoroutinePool(size int, preAlloc bool) error {
-	var err error
+	if size <= 0 {
+		return errors.New("goroutine pool size must be positive")
+	}
+	if p := getGoroutinePool(); p != nil {
+		return nil
+	}
 	options := ants.Options{
 		PreAlloc: preAlloc,
 	}
-	goroutinePool, err = ants.NewPool(size, ants.WithOptions(options))
+	p, err := ants.NewPool(size, ants.WithOptions(options))
 	if err != nil {
 		return err
 	}
+	goroutineMu.Lock()
+	if goroutinePool != nil {
+		goroutineMu.Unlock()
+		p.Release()
+		return nil
+	}
+	goroutinePool = p
+	goroutineMu.Unlock()
 	return nil
 }
 
@@ -78,16 +94,29 @@ func InitGoroutinePool(size int, preAlloc bool) error {
 //
 //	max tasks allowed to queue (0 = no queue, reject immediately when full)
 func InitNonBlockingPool(size int, maxBlocking int) error {
-	var err error
+	if size <= 0 {
+		return errors.New("non-blocking goroutine pool size must be positive")
+	}
+	if p := getNonBlockingPool(); p != nil {
+		return nil
+	}
 	options := ants.Options{
 		Nonblocking:      true,
 		MaxBlockingTasks: maxBlocking,
 		PreAlloc:         true,
 	}
-	nonBlockingPool, err = ants.NewPool(size, ants.WithOptions(options))
+	p, err := ants.NewPool(size, ants.WithOptions(options))
 	if err != nil {
 		return err
 	}
+	nonBlockingMu.Lock()
+	if nonBlockingPool != nil {
+		nonBlockingMu.Unlock()
+		p.Release()
+		return nil
+	}
+	nonBlockingPool = p
+	nonBlockingMu.Unlock()
 	return nil
 }
 
@@ -95,77 +124,112 @@ func InitNonBlockingPool(size int, maxBlocking int) error {
 // 池满时立即返回 ants.ErrPoolOverload，不阻塞调用方。
 // Returns ants.ErrPoolOverload immediately when pool is full; never blocks the caller.
 func SubmitNonBlocking(task func()) error {
-	if nonBlockingPool == nil {
+	if getNonBlockingPool() == nil {
 		// 懒初始化：容量 5000，不排队（满即拒绝）
 		// Lazy init: capacity 5000, no queue (reject when full)
 		if err := InitNonBlockingPool(5000, 0); err != nil {
 			return err
 		}
 	}
-	return nonBlockingPool.Submit(task)
+	p := getNonBlockingPool()
+	if p == nil {
+		return errors.New("non-blocking goroutine pool is unavailable")
+	}
+	return p.Submit(task)
 }
 
 // RunningNonBlocking 获取非阻塞池正在运行的协程数 | Get running goroutine count in non-blocking pool
 func RunningNonBlocking() int {
-	if nonBlockingPool == nil {
+	p := getNonBlockingPool()
+	if p == nil {
 		return 0
 	}
-	return nonBlockingPool.Running()
+	return p.Running()
 }
 
 // FreeNonBlocking 获取非阻塞池空闲协程数 | Get free goroutine count in non-blocking pool
 func FreeNonBlocking() int {
-	if nonBlockingPool == nil {
+	p := getNonBlockingPool()
+	if p == nil {
 		return 0
 	}
-	return nonBlockingPool.Free()
+	return p.Free()
 }
 
 // ReleaseNonBlocking 释放非阻塞协程池 | Release non-blocking goroutine pool
 func ReleaseNonBlocking() {
-	if nonBlockingPool != nil {
-		nonBlockingPool.Release()
+	nonBlockingMu.Lock()
+	p := nonBlockingPool
+	nonBlockingPool = nil
+	nonBlockingMu.Unlock()
+	if p != nil {
+		p.Release()
 	}
 }
 
 // Submit 提交任务到协程池 | Submit task to goroutine pool
 func Submit(task func()) error {
-	if goroutinePool == nil {
+	if getGoroutinePool() == nil {
 		// 如果未初始化，使用默认配置 | If not initialized, use default config
-		_ = InitGoroutinePool(10000, true)
+		if err := InitGoroutinePool(10000, true); err != nil {
+			return err
+		}
 	}
-	return goroutinePool.Submit(task)
+	p := getGoroutinePool()
+	if p == nil {
+		return errors.New("goroutine pool is unavailable")
+	}
+	return p.Submit(task)
 }
 
 // Running 获取正在运行的协程数 | Get running goroutine count
 func Running() int {
-	if goroutinePool == nil {
+	p := getGoroutinePool()
+	if p == nil {
 		return 0
 	}
-	return goroutinePool.Running()
+	return p.Running()
 }
 
 // Free 获取空闲协程数 | Get free goroutine count
 func Free() int {
-	if goroutinePool == nil {
+	p := getGoroutinePool()
+	if p == nil {
 		return 0
 	}
-	return goroutinePool.Free()
+	return p.Free()
 }
 
 // Cap 获取协程池容量 | Get goroutine pool capacity
 func Cap() int {
-	if goroutinePool == nil {
+	p := getGoroutinePool()
+	if p == nil {
 		return 0
 	}
-	return goroutinePool.Cap()
+	return p.Cap()
 }
 
 // Release 释放协程池 | Release goroutine pool
 func Release() {
-	if goroutinePool != nil {
-		goroutinePool.Release()
+	goroutineMu.Lock()
+	p := goroutinePool
+	goroutinePool = nil
+	goroutineMu.Unlock()
+	if p != nil {
+		p.Release()
 	}
+}
+
+func getGoroutinePool() *ants.Pool {
+	goroutineMu.RLock()
+	defer goroutineMu.RUnlock()
+	return goroutinePool
+}
+
+func getNonBlockingPool() *ants.Pool {
+	nonBlockingMu.RLock()
+	defer nonBlockingMu.RUnlock()
+	return nonBlockingPool
 }
 
 // GetByteBuffer 从字节池获取缓冲区 | Get byte buffer from pool
